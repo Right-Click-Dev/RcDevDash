@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - RcDevDash{% endblock %}
+
+{% block content %}
+<!-- Project Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('home') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">{{ project.name }}</li>
+            </ol>
+        </nav>
+        <h1>{{ project.name }}</h1>
+    </div>
+    <div>
+        <a href="{{ url_for('generate_report', project_id=project.id) }}" class="btn btn-success">
+            <i class="bi bi-file-earmark-pdf"></i> Generate Report
+        </a>
+        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteProjectModal">
+            <i class="bi bi-trash"></i> Delete Project
+        </button>
+    </div>
+</div>
+
+<!-- Project Info Card -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-8">
+                <h5 class="card-title">Project Information</h5>
+                <p class="card-text">{{ project.description or 'No description provided.' }}</p>
+            </div>
+            <div class="col-md-4">
+                <h5 class="card-title">Hours Summary</h5>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Budget:</span>
+                    <span class="fw-bold">{{ "%.1f"|format(project.hours_budget) }} hrs</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Used:</span>
+                    <span class="fw-bold {% if project.is_over_budget %}text-danger{% else %}text-primary{% endif %}">
+                        {{ "%.1f"|format(project.hours_used) }} hrs
+                    </span>
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span>Remaining:</span>
+                    <span class="fw-bold {% if project.hours_remaining < 0 %}text-danger{% else %}text-success{% endif %}">
+                        {{ "%.1f"|format(project.hours_remaining) }} hrs
+                    </span>
+                </div>
+
+                <div class="progress" style="height: 25px;">
+                    <div class="progress-bar {% if project.is_over_budget %}bg-danger{% else %}bg-primary{% endif %}"
+                         role="progressbar"
+                         style="width: {{ project.progress_percentage }}%">
+                        {{ "%.0f"|format(project.progress_percentage) }}%
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Work Items Section -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Work Items</h5>
+            </div>
+            <div class="card-body">
+                <!-- Add Work Item Form -->
+                <form method="POST" action="{{ url_for('add_work_item') }}" class="mb-4 p-3 bg-light rounded">
+                    <input type="hidden" name="project_id" value="{{ project.id }}">
+                    <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Add Work Item</h6>
+
+                    <div class="mb-2">
+                        <label for="work_description" class="form-label small">What was done? *</label>
+                        <textarea class="form-control form-control-sm" id="work_description" name="description" rows="2" required></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label for="hours" class="form-label small">Hours *</label>
+                            <input type="number" class="form-control form-control-sm" id="hours" name="hours" step="0.25" min="0.25" required>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label for="work_date" class="form-label small">Date</label>
+                            <input type="date" class="form-control form-control-sm" id="work_date" name="work_date" value="{{ now.strftime('%Y-%m-%d') }}">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-plus"></i> Add Work Item
+                    </button>
+                </form>
+
+                <!-- Work Items List -->
+                <div class="work-items-list" style="max-height: 500px; overflow-y: auto;">
+                    {% if work_items %}
+                        {% for item in work_items %}
+                        <div class="border-bottom pb-2 mb-2">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <small class="text-muted">{{ item.work_date|datetimeformat('%b %d, %Y') }}</small>
+                                    <span class="badge bg-primary ms-2">{{ "%.2f"|format(item.hours) }} hrs</span>
+                                    <p class="mb-0 mt-1">{{ item.description }}</p>
+                                </div>
+                                <div class="btn-group btn-group-sm ms-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editWorkItemModal{{ item.id }}"
+                                            title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <form method="POST" action="{{ url_for('delete_work_item', workitem_id=item.id) }}"
+                                          class="d-inline"
+                                          onsubmit="return confirm('Delete this work item?');">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Edit Work Item Modal -->
+                        <div class="modal fade" id="editWorkItemModal{{ item.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title"><i class="bi bi-pencil"></i> Edit Work Item</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <form method="POST" action="{{ url_for('edit_work_item', workitem_id=item.id) }}">
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label for="edit_description{{ item.id }}" class="form-label">What was done? *</label>
+                                                <textarea class="form-control" id="edit_description{{ item.id }}"
+                                                          name="description" rows="3" required>{{ item.description }}</textarea>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="edit_hours{{ item.id }}" class="form-label">Hours *</label>
+                                                    <input type="number" class="form-control" id="edit_hours{{ item.id }}"
+                                                           name="hours" step="0.25" min="0.25" value="{{ item.hours }}" required>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="edit_work_date{{ item.id }}" class="form-label">Date</label>
+                                                    <input type="date" class="form-control" id="edit_work_date{{ item.id }}"
+                                                           name="work_date" value="{{ item.work_date.strftime('%Y-%m-%d') }}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Changes</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted text-center">No work items yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tasks Section -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-check2-square"></i> Tasks</h5>
+            </div>
+            <div class="card-body">
+                <!-- Add Task Form -->
+                <form method="POST" action="{{ url_for('add_task') }}" class="mb-4 p-3 bg-light rounded">
+                    <input type="hidden" name="project_id" value="{{ project.id }}">
+                    <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Add Task</h6>
+
+                    <div class="mb-2">
+                        <label for="task_description" class="form-label small">Task Description *</label>
+                        <input type="text" class="form-control form-control-sm" id="task_description" name="description" required>
+                    </div>
+
+                    <div class="mb-2">
+                        <label for="deadline" class="form-label small">Deadline</label>
+                        <input type="date" class="form-control form-control-sm" id="deadline" name="deadline">
+                    </div>
+
+                    <button type="submit" class="btn btn-success btn-sm w-100">
+                        <i class="bi bi-plus"></i> Add Task
+                    </button>
+                </form>
+
+                <!-- Tasks List -->
+                <div class="tasks-list" style="max-height: 500px; overflow-y: auto;">
+                    {% if tasks %}
+                        {% for task in tasks %}
+                        <div class="d-flex align-items-start border-bottom pb-2 mb-2 task-item {% if task.completed %}task-completed{% endif %}">
+                            <div class="form-check me-2">
+                                <input class="form-check-input task-checkbox" type="checkbox"
+                                       data-task-id="{{ task.id }}"
+                                       {% if task.completed %}checked{% endif %}>
+                            </div>
+                            <div class="flex-grow-1">
+                                <p class="mb-1 {% if task.completed %}text-decoration-line-through text-muted{% endif %}">
+                                    {{ task.description }}
+                                </p>
+                                {% if task.deadline %}
+                                <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
+                                    <i class="bi bi-calendar-event"></i>
+                                    {{ task.deadline|dateformat('%b %d, %Y') }}
+                                    {% if task.is_overdue %}
+                                    <span class="badge bg-danger ms-1">Overdue</span>
+                                    {% endif %}
+                                </small>
+                                {% endif %}
+                            </div>
+                            <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Delete this task?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted text-center">No tasks yet.</p>
+                    {% endif %}
+                </div>
+
+                {% if tasks %}
+                <div class="mt-3 pt-3 border-top">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle"></i>
+                        {{ tasks|selectattr('completed')|list|length }} of {{ tasks|length }} tasks completed
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Project Modal -->
+<div class="modal fade" id="deleteProjectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Delete Project</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('delete_project', project_id=project.id) }}">
+                <div class="modal-body">
+                    <p>Are you sure you want to delete <strong>{{ project.name }}</strong>?</p>
+                    <p class="text-danger">This will permanently delete all work items and tasks associated with this project. This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Delete Project</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Set today's date as default
+    document.addEventListener('DOMContentLoaded', function() {
+        const now = new Date().toISOString().split('T')[0];
+        if (!document.getElementById('work_date').value) {
+            document.getElementById('work_date').value = now;
+        }
+    });
+</script>
+{% endblock %}
