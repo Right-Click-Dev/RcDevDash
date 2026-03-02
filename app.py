@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
+from functools import wraps
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, abort
 from flask_login import LoginManager, login_required, current_user
 from datetime import datetime, date
 from config import Config
@@ -518,6 +519,84 @@ def delete_lead_task(task_id):
         db.session.rollback()
         flash(f'Error deleting task: {str(e)}', 'error')
         return redirect(url_for('lead_detail', lead_id=lead_id))
+
+
+# =============================================================================
+# USER MANAGEMENT ROUTES
+# =============================================================================
+
+def admin_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_admin:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route('/users')
+@admin_required
+def user_management():
+    users = User.query.order_by(User.created_at.desc()).all()
+    return render_template('user_management.html', users=users)
+
+
+@app.route('/api/user/create', methods=['POST'])
+@admin_required
+def create_user():
+    try:
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        password_confirm = request.form.get('password_confirm', '')
+        is_admin = request.form.get('is_admin') == 'on'
+
+        if not username or not password:
+            flash('Username and password are required.', 'error')
+            return redirect(url_for('user_management'))
+
+        if password != password_confirm:
+            flash('Passwords do not match.', 'error')
+            return redirect(url_for('user_management'))
+
+        if User.query.filter_by(username=username).first():
+            flash(f'User "{username}" already exists.', 'error')
+            return redirect(url_for('user_management'))
+
+        user = User(username=username, is_admin=is_admin)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+
+        flash(f'User "{username}" created successfully!', 'success')
+        return redirect(url_for('user_management'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error creating user: {str(e)}', 'error')
+        return redirect(url_for('user_management'))
+
+
+@app.route('/api/user/<int:user_id>/delete', methods=['POST'])
+@admin_required
+def delete_user(user_id):
+    try:
+        user = User.query.get_or_404(user_id)
+
+        if user.id == current_user.id:
+            flash('You cannot delete your own account.', 'error')
+            return redirect(url_for('user_management'))
+
+        username = user.username
+        db.session.delete(user)
+        db.session.commit()
+        flash(f'User "{username}" deleted successfully.', 'success')
+        return redirect(url_for('user_management'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting user: {str(e)}', 'error')
+        return redirect(url_for('user_management'))
 
 
 # Template filters
