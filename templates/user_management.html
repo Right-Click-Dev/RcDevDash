@@ -3,16 +3,20 @@
 {% block title %}User Management - RcDevDash{% endblock %}
 
 {% block content %}
+<!-- Page Header -->
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-people"></i> User Management</h1>
+    <div>
+        <h1><i class="bi bi-people"></i> User Management</h1>
+        <p class="text-muted mb-0 small">Manage accounts, roles, and permissions</p>
+    </div>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newUserModal">
-        <i class="bi bi-person-plus"></i> New User
+        <i class="bi bi-person-plus me-1"></i> New User
     </button>
 </div>
 
 <!-- Users Table -->
-<div class="card shadow-sm">
-    <div class="card-body">
+<div class="card">
+    <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
@@ -27,36 +31,44 @@
                     {% for user in users %}
                     <tr>
                         <td>
-                            <i class="bi bi-person-circle me-2"></i>
-                            {{ user.username }}
-                            {% if user.id == current_user.id %}
-                            <span class="badge bg-primary ms-1">You</span>
-                            {% endif %}
+                            <div class="d-flex align-items-center">
+                                <div class="d-flex align-items-center justify-content-center rounded-circle bg-brand-light text-brand" style="width: 32px; height: 32px; font-weight: 700; font-size: 0.8rem;">
+                                    {{ user.username[0]|upper }}
+                                </div>
+                                <div class="ms-2">
+                                    <span class="fw-bold">{{ user.username }}</span>
+                                    {% if user.id == current_user.id %}
+                                    <span class="badge bg-primary ms-1">You</span>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </td>
                         <td>
                             {% if user.role == 'admin' %}
-                            <span class="badge bg-warning text-dark"><i class="bi bi-shield-check"></i> Admin</span>
+                            <span class="badge bg-warning text-dark"><i class="bi bi-shield-check me-1"></i>Admin</span>
                             {% elif user.role == 'billing' %}
-                            <span class="badge bg-success"><i class="bi bi-receipt-cutoff"></i> Billing</span>
+                            <span class="badge bg-success"><i class="bi bi-receipt me-1"></i>Billing</span>
                             {% else %}
-                            <span class="badge bg-primary"><i class="bi bi-code-slash"></i> Developer</span>
+                            <span class="badge bg-primary"><i class="bi bi-code-slash me-1"></i>Developer</span>
                             {% endif %}
                         </td>
-                        <td>{{ user.created_at|datetimeformat('%m/%d/%Y') }}</td>
+                        <td class="text-muted small">{{ user.created_at|datetimeformat('%b %d, %Y') }}</td>
                         <td class="text-end">
-                            {% if user.id != current_user.id %}
-                            <button class="btn btn-sm btn-outline-info me-1" data-bs-toggle="modal" data-bs-target="#changeRoleModal{{ user.id }}">
-                                <i class="bi bi-person-gear"></i> Role
-                            </button>
-                            {% endif %}
-                            <button class="btn btn-sm btn-outline-warning me-1" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ user.id }}">
-                                <i class="bi bi-key"></i> Reset Password
-                            </button>
-                            {% if user.id != current_user.id %}
-                            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteUserModal{{ user.id }}">
-                                <i class="bi bi-trash"></i> Delete
-                            </button>
-                            {% endif %}
+                            <div class="d-flex gap-1 justify-content-end">
+                                {% if user.id != current_user.id %}
+                                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#changeRoleModal{{ user.id }}" title="Change role">
+                                    <i class="bi bi-person-gear"></i>
+                                </button>
+                                {% endif %}
+                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ user.id }}" title="Reset password">
+                                    <i class="bi bi-key"></i>
+                                </button>
+                                {% if user.id != current_user.id %}
+                                <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteUserModal{{ user.id }}" title="Delete user">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -64,8 +76,8 @@
             </table>
         </div>
     </div>
-    <div class="card-footer text-muted">
-        <small>{{ users|length }} total user{{ 's' if users|length != 1 }}</small>
+    <div class="card-footer">
+        <small class="text-muted">{{ users|length }} total user{{ 's' if users|length != 1 }}</small>
     </div>
 </div>
 
@@ -73,15 +85,15 @@
 <div class="modal fade" id="newUserModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-person-plus"></i> Create New User</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-person-plus me-1"></i> Create New User</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('create_user') }}">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="username" class="form-label">Username *</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
+                        <input type="text" class="form-control" id="username" name="username" placeholder="e.g. jdoe" required>
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">Password *</label>
@@ -104,8 +116,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-person-plus"></i> Create User</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i> Create User</button>
                 </div>
             </form>
         </div>
@@ -117,8 +129,8 @@
 <div class="modal fade" id="resetPasswordModal{{ user.id }}" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title"><i class="bi bi-key"></i> Reset Password</h5>
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-key me-1"></i> Reset Password</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('reset_user_password', user_id=user.id) }}">
@@ -134,8 +146,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning"><i class="bi bi-key"></i> Reset Password</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-key me-1"></i> Reset Password</button>
                 </div>
             </form>
         </div>
@@ -149,8 +161,8 @@
 <div class="modal fade" id="changeRoleModal{{ user.id }}" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title"><i class="bi bi-person-gear"></i> Change Role</h5>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-person-gear me-1"></i> Change Role</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('change_user_role', user_id=user.id) }}">
@@ -169,8 +181,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-info text-white"><i class="bi bi-save"></i> Save Role</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save Role</button>
                 </div>
             </form>
         </div>
@@ -186,7 +198,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Delete User</h5>
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i> Delete User</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -194,9 +206,9 @@
                 <p class="text-danger mb-0"><small>This action cannot be undone.</small></p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                 <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" class="d-inline">
-                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Delete User</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i> Delete User</button>
                 </form>
             </div>
         </div>

@@ -14,44 +14,44 @@
         </nav>
         <h1>{{ project.name }}</h1>
     </div>
-    <div>
+    <div class="d-flex gap-2">
         <a href="{{ url_for('generate_report', project_id=project.id) }}" class="btn btn-success">
-            <i class="bi bi-file-earmark-pdf"></i> Generate Report
+            <i class="bi bi-file-earmark-pdf me-1"></i> Report
         </a>
         <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteProjectModal">
-            <i class="bi bi-trash"></i> Delete Project
+            <i class="bi bi-trash me-1"></i> Delete
         </button>
     </div>
 </div>
 
 <!-- Project Info Card -->
-<div class="card mb-4 shadow-sm">
+<div class="card mb-4">
     <div class="card-body">
         <div class="row">
             <div class="col-md-8">
                 <h5 class="card-title">Project Information</h5>
-                <p class="card-text">{{ project.description or 'No description provided.' }}</p>
+                <p class="card-text text-muted">{{ project.description or 'No description provided.' }}</p>
             </div>
             <div class="col-md-4">
                 <h5 class="card-title">Hours Summary</h5>
                 <div class="d-flex justify-content-between mb-2">
-                    <span>Budget:</span>
+                    <span class="text-muted">Budget:</span>
                     <span class="fw-bold">{{ "%.1f"|format(project.hours_budget) }} hrs</span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                    <span>Used:</span>
+                    <span class="text-muted">Used:</span>
                     <span class="fw-bold {% if project.is_over_budget %}text-danger{% else %}text-primary{% endif %}">
                         {{ "%.1f"|format(project.hours_used) }} hrs
                     </span>
                 </div>
                 <div class="d-flex justify-content-between mb-3">
-                    <span>Remaining:</span>
+                    <span class="text-muted">Remaining:</span>
                     <span class="fw-bold {% if project.hours_remaining < 0 %}text-danger{% else %}text-success{% endif %}">
                         {{ "%.1f"|format(project.hours_remaining) }} hrs
                     </span>
                 </div>
 
-                <div class="progress" style="height: 25px;">
+                <div class="progress" style="height: 22px;">
                     <div class="progress-bar {% if project.is_over_budget %}bg-danger{% else %}bg-primary{% endif %}"
                          role="progressbar"
                          style="width: {{ project.progress_percentage }}%">
@@ -65,20 +65,18 @@
 
 <!-- Assigned Developers Card (Admin Only) -->
 {% if current_user.is_admin %}
-<div class="card mb-4 shadow-sm">
+<div class="card mb-4">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="card-title mb-0"><i class="bi bi-people"></i> Assigned Developers</h5>
+            <h5 class="card-title mb-0"><i class="bi bi-people me-1"></i> Assigned Developers</h5>
             <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignDevsModal">
-                <i class="bi bi-person-plus"></i> Manage
+                <i class="bi bi-person-plus me-1"></i> Manage
             </button>
         </div>
         {% if project.assigned_developers %}
-        <div>
+        <div class="d-flex flex-wrap gap-1">
             {% for dev in project.assigned_developers %}
-            <span class="badge bg-primary me-1 mb-1">
-                <i class="bi bi-person"></i> {{ dev.username }}
-            </span>
+            <span class="badge bg-primary"><i class="bi bi-person me-1"></i>{{ dev.username }}</span>
             {% endfor %}
         </div>
         {% else %}
@@ -91,36 +89,38 @@
 <div class="row">
     <!-- Work Items Section -->
     <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm h-100">
+        <div class="card h-100">
             <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Work Items</h5>
+                <h5 class="mb-0"><i class="bi bi-clock-history me-1"></i> Work Items</h5>
             </div>
             <div class="card-body">
                 <!-- Add Work Item Form -->
-                <form method="POST" action="{{ url_for('add_work_item') }}" class="mb-4 p-3 bg-light rounded">
-                    <input type="hidden" name="project_id" value="{{ project.id }}">
-                    <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Add Work Item</h6>
+                <div class="mb-4 p-3 bg-light rounded">
+                    <form method="POST" action="{{ url_for('add_work_item') }}">
+                        <input type="hidden" name="project_id" value="{{ project.id }}">
+                        <h6 class="mb-3"><i class="bi bi-plus-circle me-1"></i> Add Work Item</h6>
 
-                    <div class="mb-2">
-                        <label for="work_description" class="form-label small">What was done? *</label>
-                        <textarea class="form-control form-control-sm" id="work_description" name="description" rows="2" required></textarea>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-2">
-                            <label for="hours" class="form-label small">Hours *</label>
-                            <input type="number" class="form-control form-control-sm" id="hours" name="hours" step="0.25" min="0.25" required>
+                        <div class="mb-2">
+                            <label for="work_description" class="form-label small">What was done? *</label>
+                            <textarea class="form-control form-control-sm" id="work_description" name="description" rows="2" required></textarea>
                         </div>
-                        <div class="col-md-6 mb-2">
-                            <label for="work_date" class="form-label small">Date</label>
-                            <input type="date" class="form-control form-control-sm" id="work_date" name="work_date" value="{{ now.strftime('%Y-%m-%d') }}">
-                        </div>
-                    </div>
 
-                    <button type="submit" class="btn btn-primary btn-sm w-100">
-                        <i class="bi bi-plus"></i> Add Work Item
-                    </button>
-                </form>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <label for="hours" class="form-label small">Hours *</label>
+                                <input type="number" class="form-control form-control-sm" id="hours" name="hours" step="0.25" min="0.25" required>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <label for="work_date" class="form-label small">Date</label>
+                                <input type="date" class="form-control form-control-sm" id="work_date" name="work_date" value="{{ now.strftime('%Y-%m-%d') }}">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-plus me-1"></i> Add Work Item
+                        </button>
+                    </form>
+                </div>
 
                 <!-- Work Items List -->
                 <div class="work-items-list" style="max-height: 500px; overflow-y: auto;">
@@ -137,8 +137,7 @@
                                 <div class="btn-group btn-group-sm ms-2">
                                     <button type="button" class="btn btn-outline-primary btn-sm"
                                             data-bs-toggle="modal"
-                                            data-bs-target="#editWorkItemModal{{ item.id }}"
-                                            title="Edit">
+                                            data-bs-target="#editWorkItemModal{{ item.id }}" title="Edit">
                                         <i class="bi bi-pencil"></i>
                                     </button>
                                     <form method="POST" action="{{ url_for('delete_work_item', workitem_id=item.id) }}"
@@ -158,9 +157,9 @@
                         <div class="modal fade" id="editWorkItemModal{{ item.id }}" tabindex="-1">
                             <div class="modal-dialog">
                                 <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title"><i class="bi bi-pencil"></i> Edit Work Item</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    <div class="modal-header bg-primary text-white">
+                                        <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit Work Item</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                                     </div>
                                     <form method="POST" action="{{ url_for('edit_work_item', workitem_id=item.id) }}">
                                         <div class="modal-body">
@@ -183,8 +182,8 @@
                                             </div>
                                         </div>
                                         <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                            <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Changes</button>
+                                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save</button>
                                         </div>
                                     </form>
                                 </div>
@@ -193,7 +192,10 @@
                         {% endif %}
                         {% endfor %}
                     {% else %}
-                        <p class="text-muted text-center">No work items yet.</p>
+                        <div class="empty-state">
+                            <i class="bi bi-clock"></i>
+                            <p class="mb-0">No work items yet.</p>
+                        </div>
                     {% endif %}
                 </div>
             </div>
@@ -202,41 +204,43 @@
 
     <!-- Tasks Section -->
     <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm h-100">
+        <div class="card h-100">
             <div class="card-header bg-success text-white">
-                <h5 class="mb-0"><i class="bi bi-check2-square"></i> Tasks</h5>
+                <h5 class="mb-0"><i class="bi bi-check2-square me-1"></i> Tasks</h5>
             </div>
             <div class="card-body">
                 <!-- Add Task Form -->
-                <form method="POST" action="{{ url_for('add_task') }}" class="mb-4 p-3 bg-light rounded">
-                    <input type="hidden" name="project_id" value="{{ project.id }}">
-                    <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Add Task</h6>
+                <div class="mb-4 p-3 bg-light rounded">
+                    <form method="POST" action="{{ url_for('add_task') }}">
+                        <input type="hidden" name="project_id" value="{{ project.id }}">
+                        <h6 class="mb-3"><i class="bi bi-plus-circle me-1"></i> Add Task</h6>
 
-                    <div class="mb-2">
-                        <label for="task_description" class="form-label small">Task Description *</label>
-                        <input type="text" class="form-control form-control-sm" id="task_description" name="description" required>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-2">
-                            <label for="deadline" class="form-label small">Deadline</label>
-                            <input type="date" class="form-control form-control-sm" id="deadline" name="deadline">
+                        <div class="mb-2">
+                            <label for="task_description" class="form-label small">Task Description *</label>
+                            <input type="text" class="form-control form-control-sm" id="task_description" name="description" required>
                         </div>
-                        <div class="col-md-6 mb-2">
-                            <label for="assigned_to_id" class="form-label small">Assign To</label>
-                            <select class="form-select form-select-sm" id="assigned_to_id" name="assigned_to_id">
-                                <option value="">Unassigned</option>
-                                {% for dev in developers %}
-                                <option value="{{ dev.id }}">{{ dev.username }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
 
-                    <button type="submit" class="btn btn-success btn-sm w-100">
-                        <i class="bi bi-plus"></i> Add Task
-                    </button>
-                </form>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <label for="deadline" class="form-label small">Deadline</label>
+                                <input type="date" class="form-control form-control-sm" id="deadline" name="deadline">
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <label for="assigned_to_id" class="form-label small">Assign To</label>
+                                <select class="form-select form-select-sm" id="assigned_to_id" name="assigned_to_id">
+                                    <option value="">Unassigned</option>
+                                    {% for dev in developers %}
+                                    <option value="{{ dev.id }}">{{ dev.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success btn-sm w-100">
+                            <i class="bi bi-plus me-1"></i> Add Task
+                        </button>
+                    </form>
+                </div>
 
                 <!-- Tasks List -->
                 <div class="tasks-list" style="max-height: 500px; overflow-y: auto;">
@@ -252,13 +256,12 @@
                                 <p class="mb-1 {% if task.completed %}text-decoration-line-through text-muted{% endif %}">
                                     {{ task.description }}
                                     {% if task.assigned_to %}
-                                    <span class="badge bg-info ms-1 small"><i class="bi bi-person"></i> {{ task.assigned_to.username }}</span>
+                                    <span class="badge bg-info ms-1"><i class="bi bi-person me-1"></i>{{ task.assigned_to.username }}</span>
                                     {% endif %}
                                 </p>
                                 {% if task.deadline %}
                                 <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
-                                    <i class="bi bi-calendar-event"></i>
-                                    {{ task.deadline|dateformat('%b %d, %Y') }}
+                                    <i class="bi bi-calendar-event me-1"></i>{{ task.deadline|dateformat('%b %d, %Y') }}
                                     {% if task.is_overdue %}
                                     <span class="badge bg-danger ms-1">Overdue</span>
                                     {% endif %}
@@ -281,14 +284,17 @@
                         </div>
                         {% endfor %}
                     {% else %}
-                        <p class="text-muted text-center">No tasks yet.</p>
+                        <div class="empty-state">
+                            <i class="bi bi-check2-square"></i>
+                            <p class="mb-0">No tasks yet.</p>
+                        </div>
                     {% endif %}
                 </div>
 
                 {% if tasks %}
                 <div class="mt-3 pt-3 border-top">
                     <small class="text-muted">
-                        <i class="bi bi-info-circle"></i>
+                        <i class="bi bi-info-circle me-1"></i>
                         {{ tasks|selectattr('completed')|list|length }} of {{ tasks|length }} tasks completed
                     </small>
                 </div>
@@ -303,9 +309,9 @@
 <div class="modal fade" id="assignDevsModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-person-plus"></i> Assign Developers</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-person-plus me-1"></i> Assign Developers</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('assign_developers', project_id=project.id) }}">
                 <div class="modal-body">
@@ -322,8 +328,8 @@
                     {% endfor %}
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Assignments</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save</button>
                 </div>
             </form>
         </div>
@@ -336,17 +342,17 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Delete Project</h5>
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i> Delete Project</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('delete_project', project_id=project.id) }}">
                 <div class="modal-body">
                     <p>Are you sure you want to delete <strong>{{ project.name }}</strong>?</p>
-                    <p class="text-danger">This will permanently delete all work items and tasks associated with this project. This action cannot be undone.</p>
+                    <p class="text-danger mb-0">This will permanently delete all work items and tasks. This action cannot be undone.</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Delete Project</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i> Delete Project</button>
                 </div>
             </form>
         </div>
@@ -357,13 +363,11 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Set today's date as default
         const now = new Date().toISOString().split('T')[0];
         if (!document.getElementById('work_date').value) {
             document.getElementById('work_date').value = now;
         }
 
-        // Task assignment dropdown change handler
         document.querySelectorAll('.task-assign-select').forEach(function(select) {
             select.addEventListener('change', function() {
                 const taskId = this.dataset.taskId;

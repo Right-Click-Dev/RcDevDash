@@ -3,144 +3,136 @@
 {% block title %}Dashboard - RcDevDash{% endblock %}
 
 {% block content %}
+<!-- Page Header -->
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-grid-3x3-gap"></i> Dashboard</h1>
-    {% if current_user.is_admin %}
     <div>
-        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#newLeadModal">
-            <i class="bi bi-plus-circle"></i> New Lead
+        <h1><i class="bi bi-grid-1x2"></i> Dashboard</h1>
+        <p class="text-muted mb-0 small">Manage your projects and leads</p>
+    </div>
+    {% if current_user.is_admin %}
+    <div class="d-flex gap-2">
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#newLeadModal">
+            <i class="bi bi-lightbulb me-1"></i> New Lead
         </button>
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProjectModal">
-            <i class="bi bi-plus-circle"></i> New Project
+            <i class="bi bi-plus-circle me-1"></i> New Project
         </button>
     </div>
     {% endif %}
 </div>
 
 <!-- Search Bar -->
-<div class="mb-4">
+<div class="search-box mb-4">
     <div class="input-group">
         <span class="input-group-text"><i class="bi bi-search"></i></span>
-        <input type="text" class="form-control" id="dashboardSearch" placeholder="Search leads and projects...">
+        <input type="text" class="form-control" id="dashboardSearch" placeholder="Search projects and leads...">
     </div>
 </div>
 
 <!-- Leads Section (hidden for developers) -->
 {% if current_user.role != 'developer' %}
-<h3 class="mb-3"><i class="bi bi-lightbulb"></i> Leads</h3>
+<div class="section-title"><i class="bi bi-lightbulb"></i> Leads</div>
 {% if leads %}
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-5">
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 mb-5">
     {% for lead in leads %}
     <div class="col searchable-card">
-        <div class="card h-100 shadow-sm lead-card border-success">
+        <div class="card h-100 lead-card">
             <div class="card-body">
-                <h5 class="card-title">
-                    <a href="{{ url_for('lead_detail', lead_id=lead.id) }}" class="text-decoration-none">
-                        {{ lead.name }}
-                    </a>
-                    <span class="badge bg-{{ 'success' if lead.status == 'Qualified' else 'warning' if lead.status == 'Contacted' else 'info' if lead.status == 'New' else 'secondary' }} ms-2">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title mb-0">
+                        <a href="{{ url_for('lead_detail', lead_id=lead.id) }}" class="text-decoration-none text-dark">
+                            {{ lead.name }}
+                        </a>
+                    </h5>
+                    <span class="badge bg-{{ 'success' if lead.status == 'Qualified' else 'warning' if lead.status == 'Contacted' else 'info' if lead.status == 'New' else 'secondary' }}">
                         {{ lead.status }}
                     </span>
-                </h5>
+                </div>
 
                 {% if lead.description %}
-                <p class="card-text text-muted small">{{ lead.description[:100] }}{% if lead.description|length > 100 %}...{% endif %}</p>
+                <p class="card-text text-muted small mb-3">{{ lead.description[:100] }}{% if lead.description|length > 100 %}...{% endif %}</p>
                 {% endif %}
 
-                <div class="mt-3">
-                    <small class="text-muted">
-                        <i class="bi bi-clock"></i> Est. {{ "%.0f"|format(lead.estimated_hours) }} hours
-                    </small>
-                </div>
-
-                <div class="mt-2 pt-2 border-top">
-                    <div class="d-flex justify-content-between text-muted small">
-                        <span><i class="bi bi-sticky"></i> {{ lead.notes|length }} notes</span>
-                        <span><i class="bi bi-check2-square"></i> {{ lead.tasks|selectattr('completed')|list|length }} / {{ lead.tasks|length }} tasks</span>
-                    </div>
+                <div class="d-flex justify-content-between align-items-center text-muted small">
+                    <span><i class="bi bi-clock me-1"></i>Est. {{ "%.0f"|format(lead.estimated_hours) }} hrs</span>
+                    <span><i class="bi bi-check2-square me-1"></i>{{ lead.tasks|selectattr('completed')|list|length }}/{{ lead.tasks|length }} tasks</span>
                 </div>
             </div>
-            <div class="card-footer bg-transparent">
-                <small class="text-muted">Created {{ lead.created_at|datetimeformat('%m/%d/%Y') }}</small>
+            <div class="card-footer">
+                <small class="text-muted">Created {{ lead.created_at|datetimeformat('%b %d, %Y') }}</small>
             </div>
         </div>
     </div>
     {% endfor %}
 </div>
 {% else %}
-<div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> No leads yet. Create one to track potential projects!
+<div class="alert alert-info mb-5">
+    <i class="bi bi-info-circle me-1"></i> No leads yet. Create one to track potential projects!
 </div>
 {% endif %}
 {% endif %}
 
 <!-- External Projects Section -->
-<h3 class="mb-3 mt-4"><i class="bi bi-kanban"></i> External Projects</h3>
+<div class="section-title"><i class="bi bi-kanban"></i> External Projects</div>
 
 {% if external_projects %}
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 mb-4">
     {% for project in external_projects %}
     <div class="col searchable-card">
-        <div class="card h-100 shadow-sm project-card {% if project.is_over_budget %}border-danger{% endif %}">
+        <div class="card h-100 project-card {% if project.is_over_budget %}border-danger{% endif %}">
             <div class="card-body">
-                <h5 class="card-title">
-                    <a href="{{ url_for('project_detail', project_id=project.id) }}" class="text-decoration-none">
-                        {{ project.name }}
-                    </a>
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title mb-0">
+                        <a href="{{ url_for('project_detail', project_id=project.id) }}" class="text-decoration-none text-dark">
+                            {{ project.name }}
+                        </a>
+                    </h5>
                     {% if project.is_over_budget %}
-                    <span class="badge bg-danger ms-2">Over Budget</span>
-                    {% endif %}
-                </h5>
-
-                {% if project.description %}
-                <p class="card-text text-muted small">{{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}</p>
-                {% endif %}
-
-                <div class="mt-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="small text-muted">Hours</span>
-                        <span class="fw-bold {% if project.is_over_budget %}text-danger{% else %}text-primary{% endif %}">
-                            {{ "%.1f"|format(project.hours_used) }} / {{ "%.1f"|format(project.hours_budget) }}
-                        </span>
-                    </div>
-
-                    <div class="progress" style="height: 20px;">
-                        <div class="progress-bar {% if project.is_over_budget %}bg-danger{% else %}bg-primary{% endif %}"
-                             role="progressbar"
-                             style="width: {{ project.progress_percentage }}%"
-                             aria-valuenow="{{ project.progress_percentage }}"
-                             aria-valuemin="0"
-                             aria-valuemax="100">
-                            {{ "%.0f"|format(project.progress_percentage) }}%
-                        </div>
-                    </div>
-
-                    {% if project.hours_remaining > 0 %}
-                    <small class="text-success">{{ "%.1f"|format(project.hours_remaining) }} hours remaining</small>
-                    {% elif project.hours_remaining < 0 %}
-                    <small class="text-danger">{{ "%.1f"|format(-project.hours_remaining) }} hours over budget</small>
-                    {% else %}
-                    <small class="text-warning">Budget fully used</small>
+                    <span class="badge bg-danger">Over Budget</span>
                     {% endif %}
                 </div>
+
+                {% if project.description %}
+                <p class="card-text text-muted small mb-3">{{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}</p>
+                {% endif %}
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small text-muted">Hours</span>
+                    <span class="fw-bold small {% if project.is_over_budget %}text-danger{% else %}text-primary{% endif %}">
+                        {{ "%.1f"|format(project.hours_used) }} / {{ "%.1f"|format(project.hours_budget) }}
+                    </span>
+                </div>
+
+                <div class="progress mb-2" style="height: 8px;">
+                    <div class="progress-bar {% if project.is_over_budget %}bg-danger{% else %}bg-primary{% endif %}"
+                         role="progressbar" style="width: {{ project.progress_percentage }}%"></div>
+                </div>
+
+                {% if project.hours_remaining > 0 %}
+                <small class="text-success">{{ "%.1f"|format(project.hours_remaining) }} hrs remaining</small>
+                {% elif project.hours_remaining < 0 %}
+                <small class="text-danger">{{ "%.1f"|format(-project.hours_remaining) }} hrs over</small>
+                {% else %}
+                <small class="text-warning">Budget fully used</small>
+                {% endif %}
 
                 <div class="mt-3 pt-3 border-top">
                     <div class="d-flex justify-content-between text-muted small">
                         {% if current_user.role == 'developer' %}
-                        <span><i class="bi bi-person-check"></i> {{ project.task_count_for_user(current_user.id) }} tasks assigned to you</span>
+                        <span><i class="bi bi-person-check me-1"></i>{{ project.task_count_for_user(current_user.id) }} tasks assigned</span>
                         {% else %}
-                        <span><i class="bi bi-clock"></i> {{ project.work_items|length }} work items</span>
-                        <span><i class="bi bi-check2-square"></i> {{ project.tasks|selectattr('completed')|list|length }} / {{ project.tasks|length }} tasks</span>
+                        <span><i class="bi bi-clock me-1"></i>{{ project.work_items|length }} work items</span>
+                        <span><i class="bi bi-check2-square me-1"></i>{{ project.tasks|selectattr('completed')|list|length }}/{{ project.tasks|length }} tasks</span>
                         {% endif %}
                     </div>
                 </div>
             </div>
-            <div class="card-footer bg-transparent">
-                <div class="d-flex justify-content-between">
+            <div class="card-footer">
+                <div class="d-flex justify-content-between align-items-center">
                     <a href="{{ url_for('project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-eye"></i> View Details
+                        <i class="bi bi-arrow-right me-1"></i> Open
                     </a>
-                    <small class="text-muted align-self-center">Updated {{ project.updated_at|datetimeformat('%m/%d/%Y') }}</small>
+                    <small class="text-muted">{{ project.updated_at|datetimeformat('%b %d') }}</small>
                 </div>
             </div>
         </div>
@@ -148,82 +140,76 @@
     {% endfor %}
 </div>
 {% else %}
-<div class="alert alert-info">
+<div class="alert alert-info mb-4">
     {% if current_user.role == 'developer' %}
-    <i class="bi bi-info-circle"></i> No external projects assigned to you yet.
+    <i class="bi bi-info-circle me-1"></i> No external projects assigned to you yet.
     {% else %}
-    <i class="bi bi-info-circle"></i> No external projects yet. Create one to track client work!
+    <i class="bi bi-info-circle me-1"></i> No external projects yet. Create one to get started!
     {% endif %}
 </div>
 {% endif %}
 
 <!-- Internal Projects Section -->
-<h3 class="mb-3 mt-5"><i class="bi bi-building"></i> Internal Projects</h3>
+<div class="section-title mt-4"><i class="bi bi-building"></i> Internal Projects</div>
 
 {% if internal_projects %}
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
     {% for project in internal_projects %}
     <div class="col searchable-card">
-        <div class="card h-100 shadow-sm project-card border-info {% if project.is_over_budget %}border-danger{% endif %}">
+        <div class="card h-100 project-card {% if project.is_over_budget %}border-danger{% endif %}">
             <div class="card-body">
-                <h5 class="card-title">
-                    <a href="{{ url_for('project_detail', project_id=project.id) }}" class="text-decoration-none">
-                        {{ project.name }}
-                    </a>
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title mb-0">
+                        <a href="{{ url_for('project_detail', project_id=project.id) }}" class="text-decoration-none text-dark">
+                            {{ project.name }}
+                        </a>
+                    </h5>
                     {% if project.is_over_budget %}
-                    <span class="badge bg-danger ms-2">Over Budget</span>
-                    {% endif %}
-                </h5>
-
-                {% if project.description %}
-                <p class="card-text text-muted small">{{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}</p>
-                {% endif %}
-
-                <div class="mt-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="small text-muted">Hours</span>
-                        <span class="fw-bold {% if project.is_over_budget %}text-danger{% else %}text-primary{% endif %}">
-                            {{ "%.1f"|format(project.hours_used) }} / {{ "%.1f"|format(project.hours_budget) }}
-                        </span>
-                    </div>
-
-                    <div class="progress" style="height: 20px;">
-                        <div class="progress-bar {% if project.is_over_budget %}bg-danger{% else %}bg-info{% endif %}"
-                             role="progressbar"
-                             style="width: {{ project.progress_percentage }}%"
-                             aria-valuenow="{{ project.progress_percentage }}"
-                             aria-valuemin="0"
-                             aria-valuemax="100">
-                            {{ "%.0f"|format(project.progress_percentage) }}%
-                        </div>
-                    </div>
-
-                    {% if project.hours_remaining > 0 %}
-                    <small class="text-success">{{ "%.1f"|format(project.hours_remaining) }} hours remaining</small>
-                    {% elif project.hours_remaining < 0 %}
-                    <small class="text-danger">{{ "%.1f"|format(-project.hours_remaining) }} hours over budget</small>
-                    {% else %}
-                    <small class="text-warning">Budget fully used</small>
+                    <span class="badge bg-danger">Over Budget</span>
                     {% endif %}
                 </div>
+
+                {% if project.description %}
+                <p class="card-text text-muted small mb-3">{{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}</p>
+                {% endif %}
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small text-muted">Hours</span>
+                    <span class="fw-bold small {% if project.is_over_budget %}text-danger{% else %}text-info{% endif %}">
+                        {{ "%.1f"|format(project.hours_used) }} / {{ "%.1f"|format(project.hours_budget) }}
+                    </span>
+                </div>
+
+                <div class="progress mb-2" style="height: 8px;">
+                    <div class="progress-bar {% if project.is_over_budget %}bg-danger{% else %}bg-info{% endif %}"
+                         role="progressbar" style="width: {{ project.progress_percentage }}%"></div>
+                </div>
+
+                {% if project.hours_remaining > 0 %}
+                <small class="text-success">{{ "%.1f"|format(project.hours_remaining) }} hrs remaining</small>
+                {% elif project.hours_remaining < 0 %}
+                <small class="text-danger">{{ "%.1f"|format(-project.hours_remaining) }} hrs over</small>
+                {% else %}
+                <small class="text-warning">Budget fully used</small>
+                {% endif %}
 
                 <div class="mt-3 pt-3 border-top">
                     <div class="d-flex justify-content-between text-muted small">
                         {% if current_user.role == 'developer' %}
-                        <span><i class="bi bi-person-check"></i> {{ project.task_count_for_user(current_user.id) }} tasks assigned to you</span>
+                        <span><i class="bi bi-person-check me-1"></i>{{ project.task_count_for_user(current_user.id) }} tasks assigned</span>
                         {% else %}
-                        <span><i class="bi bi-clock"></i> {{ project.work_items|length }} work items</span>
-                        <span><i class="bi bi-check2-square"></i> {{ project.tasks|selectattr('completed')|list|length }} / {{ project.tasks|length }} tasks</span>
+                        <span><i class="bi bi-clock me-1"></i>{{ project.work_items|length }} work items</span>
+                        <span><i class="bi bi-check2-square me-1"></i>{{ project.tasks|selectattr('completed')|list|length }}/{{ project.tasks|length }} tasks</span>
                         {% endif %}
                     </div>
                 </div>
             </div>
-            <div class="card-footer bg-transparent">
-                <div class="d-flex justify-content-between">
+            <div class="card-footer">
+                <div class="d-flex justify-content-between align-items-center">
                     <a href="{{ url_for('project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-info">
-                        <i class="bi bi-eye"></i> View Details
+                        <i class="bi bi-arrow-right me-1"></i> Open
                     </a>
-                    <small class="text-muted align-self-center">Updated {{ project.updated_at|datetimeformat('%m/%d/%Y') }}</small>
+                    <small class="text-muted">{{ project.updated_at|datetimeformat('%b %d') }}</small>
                 </div>
             </div>
         </div>
@@ -233,9 +219,9 @@
 {% else %}
 <div class="alert alert-info">
     {% if current_user.role == 'developer' %}
-    <i class="bi bi-info-circle"></i> No internal projects assigned to you yet.
+    <i class="bi bi-info-circle me-1"></i> No internal projects assigned to you yet.
     {% else %}
-    <i class="bi bi-info-circle"></i> No internal projects yet. Create one to track internal work!
+    <i class="bi bi-info-circle me-1"></i> No internal projects yet.
     {% endif %}
 </div>
 {% endif %}
@@ -244,19 +230,19 @@
 <div class="modal fade" id="newProjectModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> New Project</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-1"></i> New Project</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('create_project') }}">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="name" class="form-label">Project Name *</label>
-                        <input type="text" class="form-control" id="name" name="name" required>
+                        <input type="text" class="form-control" id="name" name="name" placeholder="e.g. Website Redesign" required>
                     </div>
                     <div class="mb-3">
                         <label for="description" class="form-label">Description</label>
-                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        <textarea class="form-control" id="description" name="description" rows="3" placeholder="Brief project description..."></textarea>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -264,7 +250,7 @@
                             <input type="number" class="form-control" id="hours_budget" name="hours_budget" step="0.5" min="0" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="project_type" class="form-label">Project Type *</label>
+                            <label for="project_type" class="form-label">Type *</label>
                             <select class="form-select" id="project_type" name="project_type" required>
                                 <option value="External" selected>External (Client)</option>
                                 <option value="Internal">Internal</option>
@@ -273,8 +259,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Create Project</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Create</button>
                 </div>
             </form>
         </div>
@@ -286,18 +272,18 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> New Lead</h5>
+                <h5 class="modal-title"><i class="bi bi-lightbulb me-1"></i> New Lead</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('create_lead') }}">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="lead_name" class="form-label">Lead Name *</label>
-                        <input type="text" class="form-control" id="lead_name" name="name" required>
+                        <input type="text" class="form-control" id="lead_name" name="name" placeholder="e.g. Acme Corp Portal" required>
                     </div>
                     <div class="mb-3">
                         <label for="lead_description" class="form-label">Description</label>
-                        <textarea class="form-control" id="lead_description" name="description" rows="3"></textarea>
+                        <textarea class="form-control" id="lead_description" name="description" rows="3" placeholder="What's the opportunity?"></textarea>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -316,8 +302,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="bi bi-save"></i> Create Lead</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-plus-circle me-1"></i> Create</button>
                 </div>
             </form>
         </div>

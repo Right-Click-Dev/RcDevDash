@@ -4,58 +4,58 @@
 
 {% block content %}
 <!-- Lead Header -->
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('home') }}">Dashboard</a></li>
-                <li class="breadcrumb-item active">{{ lead.name }}</li>
-            </ol>
-        </nav>
+<div class="mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('home') }}">Dashboard</a></li>
+            <li class="breadcrumb-item active">{{ lead.name }}</li>
+        </ol>
+    </nav>
+    <div class="d-flex justify-content-between align-items-center">
         <h1>{{ lead.name }}
             <span class="badge bg-{{ 'success' if lead.status == 'Qualified' else 'warning' if lead.status == 'Contacted' else 'info' if lead.status == 'New' else 'secondary' }}">
                 {{ lead.status }}
             </span>
         </h1>
-    </div>
-    <div>
-        <form method="POST" action="{{ url_for('convert_lead_to_project', lead_id=lead.id) }}" class="d-inline"
-              onsubmit="return confirm('Convert this lead to a project? All notes and tasks will be transferred.');">
-            <button type="submit" class="btn btn-primary btn-lg">
-                <i class="bi bi-arrow-right-circle"></i> Convert to Project
+        <div class="d-flex gap-2">
+            <form method="POST" action="{{ url_for('convert_lead_to_project', lead_id=lead.id) }}" class="d-inline"
+                  onsubmit="return confirm('Convert this lead to a project? All notes and tasks will be transferred.');">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-arrow-right-circle me-1"></i> Convert to Project
+                </button>
+            </form>
+            <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteLeadModal">
+                <i class="bi bi-trash me-1"></i> Delete
             </button>
-        </form>
-        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteLeadModal">
-            <i class="bi bi-trash"></i> Delete Lead
-        </button>
+        </div>
     </div>
 </div>
 
 <!-- Lead Info Card -->
-<div class="card mb-4 shadow-sm border-success">
+<div class="card mb-4">
     <div class="card-body">
         <div class="row">
             <div class="col-md-8">
                 <h5 class="card-title">Lead Information</h5>
-                <p class="card-text">{{ lead.description or 'No description provided.' }}</p>
+                <p class="card-text text-muted">{{ lead.description or 'No description provided.' }}</p>
             </div>
             <div class="col-md-4">
                 <h5 class="card-title">Details</h5>
                 <div class="d-flex justify-content-between mb-2">
-                    <span>Status:</span>
+                    <span class="text-muted">Status:</span>
                     <span class="fw-bold">{{ lead.status }}</span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                    <span>Est. Hours:</span>
+                    <span class="text-muted">Est. Hours:</span>
                     <span class="fw-bold">{{ "%.1f"|format(lead.estimated_hours) }} hrs</span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                    <span>Hours Logged:</span>
+                    <span class="text-muted">Hours Logged:</span>
                     <span class="fw-bold text-success">{{ "%.1f"|format(lead.hours_logged) }} hrs</span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                    <span>Created:</span>
-                    <span>{{ lead.created_at|datetimeformat('%m/%d/%Y') }}</span>
+                    <span class="text-muted">Created:</span>
+                    <span>{{ lead.created_at|datetimeformat('%b %d, %Y') }}</span>
                 </div>
             </div>
         </div>
@@ -65,36 +65,38 @@
 <div class="row">
     <!-- Notes Section -->
     <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm h-100 border-success">
+        <div class="card h-100">
             <div class="card-header bg-success text-white">
-                <h5 class="mb-0"><i class="bi bi-sticky"></i> Notes</h5>
+                <h5 class="mb-0"><i class="bi bi-sticky me-1"></i> Notes</h5>
             </div>
             <div class="card-body">
                 <!-- Add Note Form -->
-                <form method="POST" action="{{ url_for('add_lead_note') }}" class="mb-4 p-3 bg-light rounded">
-                    <input type="hidden" name="lead_id" value="{{ lead.id }}">
-                    <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Add Note</h6>
+                <div class="mb-4 p-3 bg-light rounded">
+                    <form method="POST" action="{{ url_for('add_lead_note') }}">
+                        <input type="hidden" name="lead_id" value="{{ lead.id }}">
+                        <h6 class="mb-3"><i class="bi bi-plus-circle me-1"></i> Add Note</h6>
 
-                    <div class="mb-2">
-                        <label for="note" class="form-label small">What was done? *</label>
-                        <textarea class="form-control form-control-sm" id="note" name="note" rows="2" required></textarea>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-2">
-                            <label for="hours" class="form-label small">Hours *</label>
-                            <input type="number" class="form-control form-control-sm" id="hours" name="hours" step="0.25" min="0" value="0" required>
+                        <div class="mb-2">
+                            <label for="note" class="form-label small">What was done? *</label>
+                            <textarea class="form-control form-control-sm" id="note" name="note" rows="2" required></textarea>
                         </div>
-                        <div class="col-md-6 mb-2">
-                            <label for="work_date" class="form-label small">Date</label>
-                            <input type="date" class="form-control form-control-sm" id="work_date" name="work_date" value="{{ now.strftime('%Y-%m-%d') }}">
-                        </div>
-                    </div>
 
-                    <button type="submit" class="btn btn-success btn-sm w-100">
-                        <i class="bi bi-plus"></i> Add Note
-                    </button>
-                </form>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <label for="hours" class="form-label small">Hours *</label>
+                                <input type="number" class="form-control form-control-sm" id="hours" name="hours" step="0.25" min="0" value="0" required>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <label for="work_date" class="form-label small">Date</label>
+                                <input type="date" class="form-control form-control-sm" id="work_date" name="work_date" value="{{ now.strftime('%Y-%m-%d') }}">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success btn-sm w-100">
+                            <i class="bi bi-plus me-1"></i> Add Note
+                        </button>
+                    </form>
+                </div>
 
                 <!-- Notes List -->
                 <div class="work-items-list" style="max-height: 500px; overflow-y: auto;">
@@ -107,8 +109,8 @@
                                     <span class="badge bg-success ms-2">{{ "%.2f"|format(note.hours) }} hrs</span>
                                     <p class="mb-0 mt-1">{{ note.note }}</p>
                                 </div>
-                                <div class="btn-group btn-group-sm ms-2">
-                                    <button type="button" class="btn btn-outline-primary btn-sm"
+                                <div class="d-flex gap-1 ms-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
                                             data-bs-toggle="modal"
                                             data-bs-target="#editNoteModal{{ note.id }}"
                                             title="Edit">
@@ -117,53 +119,19 @@
                                     <form method="POST" action="{{ url_for('delete_lead_note', note_id=note.id) }}"
                                           class="d-inline"
                                           onsubmit="return confirm('Delete this note?');">
-                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </form>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Edit Note Modal -->
-                        <div class="modal fade" id="editNoteModal{{ note.id }}" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title"><i class="bi bi-pencil"></i> Edit Note</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                    </div>
-                                    <form method="POST" action="{{ url_for('edit_lead_note', note_id=note.id) }}">
-                                        <div class="modal-body">
-                                            <div class="mb-3">
-                                                <label for="edit_note{{ note.id }}" class="form-label">What was done? *</label>
-                                                <textarea class="form-control" id="edit_note{{ note.id }}"
-                                                          name="note" rows="3" required>{{ note.note }}</textarea>
-                                            </div>
-                                            <div class="row">
-                                                <div class="col-md-6 mb-3">
-                                                    <label for="edit_hours{{ note.id }}" class="form-label">Hours *</label>
-                                                    <input type="number" class="form-control" id="edit_hours{{ note.id }}"
-                                                           name="hours" step="0.25" min="0" value="{{ note.hours }}" required>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <label for="edit_work_date{{ note.id }}" class="form-label">Date</label>
-                                                    <input type="date" class="form-control" id="edit_work_date{{ note.id }}"
-                                                           name="work_date" value="{{ note.work_date.strftime('%Y-%m-%d') }}">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                            <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Changes</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
                         {% endfor %}
                     {% else %}
-                        <p class="text-muted text-center">No notes yet.</p>
+                        <div class="empty-state">
+                            <i class="bi bi-sticky"></i>
+                            <p class="mb-0">No notes yet.</p>
+                        </div>
                     {% endif %}
                 </div>
             </div>
@@ -172,30 +140,32 @@
 
     <!-- Tasks Section -->
     <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm h-100 border-success">
+        <div class="card h-100">
             <div class="card-header bg-warning text-dark">
-                <h5 class="mb-0"><i class="bi bi-check2-square"></i> Tasks</h5>
+                <h5 class="mb-0"><i class="bi bi-check2-square me-1"></i> Tasks</h5>
             </div>
             <div class="card-body">
                 <!-- Add Task Form -->
-                <form method="POST" action="{{ url_for('add_lead_task') }}" class="mb-4 p-3 bg-light rounded">
-                    <input type="hidden" name="lead_id" value="{{ lead.id }}">
-                    <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Add Task</h6>
+                <div class="mb-4 p-3 bg-light rounded">
+                    <form method="POST" action="{{ url_for('add_lead_task') }}">
+                        <input type="hidden" name="lead_id" value="{{ lead.id }}">
+                        <h6 class="mb-3"><i class="bi bi-plus-circle me-1"></i> Add Task</h6>
 
-                    <div class="mb-2">
-                        <label for="task_description" class="form-label small">Task Description *</label>
-                        <input type="text" class="form-control form-control-sm" id="task_description" name="description" required>
-                    </div>
+                        <div class="mb-2">
+                            <label for="task_description" class="form-label small">Task Description *</label>
+                            <input type="text" class="form-control form-control-sm" id="task_description" name="description" required>
+                        </div>
 
-                    <div class="mb-2">
-                        <label for="deadline" class="form-label small">Deadline</label>
-                        <input type="date" class="form-control form-control-sm" id="deadline" name="deadline">
-                    </div>
+                        <div class="mb-2">
+                            <label for="deadline" class="form-label small">Deadline</label>
+                            <input type="date" class="form-control form-control-sm" id="deadline" name="deadline">
+                        </div>
 
-                    <button type="submit" class="btn btn-warning btn-sm w-100">
-                        <i class="bi bi-plus"></i> Add Task
-                    </button>
-                </form>
+                        <button type="submit" class="btn btn-warning btn-sm w-100">
+                            <i class="bi bi-plus me-1"></i> Add Task
+                        </button>
+                    </form>
+                </div>
 
                 <!-- Tasks List -->
                 <div class="tasks-list" style="max-height: 500px; overflow-y: auto;">
@@ -213,7 +183,7 @@
                                 </p>
                                 {% if task.deadline %}
                                 <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
-                                    <i class="bi bi-calendar-event"></i>
+                                    <i class="bi bi-calendar-event me-1"></i>
                                     {{ task.deadline|dateformat('%b %d, %Y') }}
                                     {% if task.is_overdue %}
                                     <span class="badge bg-danger ms-1">Overdue</span>
@@ -229,14 +199,17 @@
                         </div>
                         {% endfor %}
                     {% else %}
-                        <p class="text-muted text-center">No tasks yet.</p>
+                        <div class="empty-state">
+                            <i class="bi bi-check2-square"></i>
+                            <p class="mb-0">No tasks yet.</p>
+                        </div>
                     {% endif %}
                 </div>
 
                 {% if tasks %}
                 <div class="mt-3 pt-3 border-top">
                     <small class="text-muted">
-                        <i class="bi bi-info-circle"></i>
+                        <i class="bi bi-info-circle me-1"></i>
                         {{ tasks|selectattr('completed')|list|length }} of {{ tasks|length }} tasks completed
                     </small>
                 </div>
@@ -246,22 +219,61 @@
     </div>
 </div>
 
+<!-- Edit Note Modals -->
+{% for note in notes %}
+<div class="modal fade" id="editNoteModal{{ note.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit Note</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('edit_lead_note', note_id=note.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_note{{ note.id }}" class="form-label">What was done? *</label>
+                        <textarea class="form-control" id="edit_note{{ note.id }}"
+                                  name="note" rows="3" required>{{ note.note }}</textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_hours{{ note.id }}" class="form-label">Hours *</label>
+                            <input type="number" class="form-control" id="edit_hours{{ note.id }}"
+                                   name="hours" step="0.25" min="0" value="{{ note.hours }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_work_date{{ note.id }}" class="form-label">Date</label>
+                            <input type="date" class="form-control" id="edit_work_date{{ note.id }}"
+                                   name="work_date" value="{{ note.work_date.strftime('%Y-%m-%d') }}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-save me-1"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
 <!-- Delete Lead Modal -->
 <div class="modal fade" id="deleteLeadModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Delete Lead</h5>
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i> Delete Lead</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('delete_lead', lead_id=lead.id) }}">
                 <div class="modal-body">
                     <p>Are you sure you want to delete <strong>{{ lead.name }}</strong>?</p>
-                    <p class="text-danger">This will permanently delete all notes and tasks associated with this lead. This action cannot be undone.</p>
+                    <p class="text-danger mb-0"><small>This will permanently delete all notes and tasks associated with this lead. This action cannot be undone.</small></p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Delete Lead</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i> Delete Lead</button>
                 </div>
             </form>
         </div>
@@ -271,7 +283,6 @@
 
 {% block extra_js %}
 <script>
-    // Handle lead task checkbox toggles via AJAX
     document.addEventListener('DOMContentLoaded', function() {
         const leadTaskCheckboxes = document.querySelectorAll('.lead-task-checkbox');
         leadTaskCheckboxes.forEach(checkbox => {
