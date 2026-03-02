@@ -17,9 +17,16 @@
         <p class="text-muted mb-0">{{ project.billing_display }}</p>
         {% endif %}
     </div>
-    <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#editBillingModal">
-        <i class="bi bi-pencil me-1"></i> Edit Info
-    </button>
+    <div class="d-flex gap-2">
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('project_detail', project_id=project.id) }}" class="btn btn-primary">
+            <i class="bi bi-arrow-left-right me-1"></i> Development
+        </a>
+        {% endif %}
+        <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#editBillingModal">
+            <i class="bi bi-pencil me-1"></i> Edit Info
+        </button>
+    </div>
 </div>
 
 <div class="row">

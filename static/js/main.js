@@ -93,6 +93,27 @@ document.addEventListener('DOMContentLoaded', function() {
             requestAnimationFrame(() => { bar.style.width = targetWidth; });
         });
     });
+
+    // Theme toggle
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        const icon = themeToggle.querySelector('i');
+
+        function updateThemeIcon() {
+            const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+            icon.className = dark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+        }
+
+        updateThemeIcon();
+
+        themeToggle.addEventListener('click', function() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            updateThemeIcon();
+        });
+    }
 });
 
 // Toast notification utility
