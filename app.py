@@ -3,7 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, login_required, current_user
 from datetime import datetime, date
 from config import Config
-from models import db, User, Project, WorkItem, Task, Lead, LeadNote, LeadTask, Invoice
+from models import db, User, Project, WorkItem, Task, Lead, LeadNote, LeadTask, Invoice, project_assignments
 from auth import auth_bp
 from reports import generate_project_report
 
@@ -69,9 +69,18 @@ def home():
     # Billing-only users get redirected to billing dashboard
     if not current_user.can_access_dev:
         return redirect(url_for('billing_dashboard'))
-    external_projects = Project.query.filter_by(project_type='External').order_by(Project.updated_at.desc()).all()
-    internal_projects = Project.query.filter_by(project_type='Internal').order_by(Project.updated_at.desc()).all()
-    leads = Lead.query.order_by(Lead.updated_at.desc()).all()
+
+    # Developers only see projects they're assigned to
+    if current_user.role == User.ROLE_DEVELOPER:
+        assigned = current_user.assigned_projects
+        external_projects = [p for p in assigned if p.project_type == 'External']
+        internal_projects = [p for p in assigned if p.project_type == 'Internal']
+        leads = []  # Developers don't manage leads
+    else:
+        external_projects = Project.query.filter_by(project_type='External').order_by(Project.updated_at.desc()).all()
+        internal_projects = Project.query.filter_by(project_type='Internal').order_by(Project.updated_at.desc()).all()
+        leads = Lead.query.order_by(Lead.updated_at.desc()).all()
+
     return render_template('home.html', external_projects=external_projects, internal_projects=internal_projects, leads=leads)
 
 
@@ -80,9 +89,15 @@ def home():
 def project_detail(project_id):
     """Project detail page"""
     project = Project.query.get_or_404(project_id)
+
+    # Developers go to their focused view
+    if current_user.role == User.ROLE_DEVELOPER:
+        return redirect(url_for('dev_project_view', project_id=project_id))
+
     work_items = WorkItem.query.filter_by(project_id=project_id).order_by(WorkItem.work_date.desc()).all()
     tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.deadline).all()
-    return render_template('project_detail.html', project=project, work_items=work_items, tasks=tasks, now=datetime.now())
+    developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN])).order_by(User.username).all()
+    return render_template('project_detail.html', project=project, work_items=work_items, tasks=tasks, developers=developers, now=datetime.now())
 
 
 @app.route('/api/project/create', methods=['POST'])
@@ -238,6 +253,7 @@ def add_task():
         project_id = int(request.form.get('project_id'))
         description = request.form.get('description')
         deadline_str = request.form.get('deadline')
+        assigned_to_id = request.form.get('assigned_to_id')
 
         if not description:
             flash('Task description is required.', 'error')
@@ -249,7 +265,8 @@ def add_task():
         task = Task(
             project_id=project_id,
             description=description,
-            deadline=deadline
+            deadline=deadline,
+            assigned_to_id=int(assigned_to_id) if assigned_to_id else None
         )
         db.session.add(task)
         db.session.commit()
@@ -296,6 +313,55 @@ def delete_task(task_id):
         return redirect(url_for('project_detail', project_id=project_id))
 
 
+@app.route('/api/project/<int:project_id>/assign-developers', methods=['POST'])
+@admin_required
+def assign_developers(project_id):
+    """Assign developers to a project"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        selected_ids = request.form.getlist('developer_ids')
+        selected_ids = [int(uid) for uid in selected_ids]
+
+        # Get the selected users
+        new_devs = User.query.filter(User.id.in_(selected_ids)).all() if selected_ids else []
+
+        # Sync assignments
+        project.assigned_developers = new_devs
+        db.session.commit()
+
+        flash(f'Developer assignments updated for "{project.name}".', 'success')
+        return redirect(url_for('project_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating assignments: {str(e)}', 'error')
+        return redirect(url_for('project_detail', project_id=project_id))
+
+
+@app.route('/api/task/<int:task_id>/assign', methods=['POST'])
+@admin_required
+def assign_task(task_id):
+    """Assign a task to a developer"""
+    try:
+        task = Task.query.get_or_404(task_id)
+        assigned_to_id = request.form.get('assigned_to_id')
+        task.assigned_to_id = int(assigned_to_id) if assigned_to_id else None
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/project/<int:project_id>/dev-view')
+@dev_required
+def dev_project_view(project_id):
+    """Developer-focused project view showing only their tasks"""
+    project = Project.query.get_or_404(project_id)
+    my_tasks = Task.query.filter_by(project_id=project_id, assigned_to_id=current_user.id).order_by(Task.completed, Task.deadline).all()
+    return render_template('dev_project_view.html', project=project, tasks=my_tasks, now=datetime.now())
+
+
 @app.route('/report/<int:project_id>')
 @login_required
 def generate_report(project_id):
@@ -316,8 +382,8 @@ def generate_report(project_id):
 @app.route('/billing')
 @billing_required
 def billing_dashboard():
-    """Billing dashboard - display all projects with financial info"""
-    projects = Project.query.order_by(Project.updated_at.desc()).all()
+    """Billing dashboard - display external projects with financial info"""
+    projects = Project.query.filter_by(project_type='External').order_by(Project.updated_at.desc()).all()
     return render_template('billing_dashboard.html', projects=projects)
 
 

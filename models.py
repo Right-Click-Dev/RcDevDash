@@ -5,6 +5,13 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+# Association table for many-to-many User <-> Project assignments
+project_assignments = db.Table('project_assignments',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('project_id', db.Integer, db.ForeignKey('projects.id'), primary_key=True),
+    db.Column('assigned_at', db.DateTime, default=datetime.utcnow)
+)
+
 
 class User(UserMixin, db.Model):
     """User model for authentication"""
@@ -22,6 +29,9 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=True)
     role = db.Column(db.String(20), default=ROLE_ADMIN)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    assigned_projects = db.relationship('Project', secondary=project_assignments, backref=db.backref('assigned_developers', lazy=True), lazy=True)
 
     @property
     def can_access_dev(self):
@@ -109,6 +119,14 @@ class Project(db.Model):
             return f"{self.billing_client} for {self.billing_for}"
         return self.billing_client or self.billing_for or ''
 
+    def tasks_for_user(self, user_id):
+        """Return tasks assigned to a specific user"""
+        return [t for t in self.tasks if t.assigned_to_id == user_id]
+
+    def task_count_for_user(self, user_id):
+        """Return count of tasks assigned to a specific user"""
+        return len(self.tasks_for_user(user_id))
+
     def __repr__(self):
         return f'<Project {self.name}>'
 
@@ -136,9 +154,13 @@ class Task(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     description = db.Column(db.Text, nullable=False)
     deadline = db.Column(db.Date, nullable=True)
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     completed = db.Column(db.Boolean, default=False)
     completed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    assigned_to = db.relationship('User', backref='assigned_tasks', foreign_keys=[assigned_to_id])
 
     def toggle_completed(self):
         """Toggle task completion status"""
