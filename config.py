@@ -17,6 +17,10 @@ class Config:
     if USE_SQLITE:
         # SQLite for local development
         SQLALCHEMY_DATABASE_URI = 'sqlite:///rcdevdash.db'
+        # SQLite-specific engine options
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_pre_ping': True,
+        }
     else:
         # MySQL for PythonAnywhere production
         DB_USERNAME = os.environ.get('DB_USERNAME', 'your_username')
@@ -24,6 +28,16 @@ class Config:
         DB_HOST = os.environ.get('DB_HOST', 'your_username.mysql.pythonanywhere-services.com')
         DB_NAME = os.environ.get('DB_NAME', 'your_username$rcdevdash')
         SQLALCHEMY_DATABASE_URI = f'mysql+pymysql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}'
+        # MySQL-specific engine options for connection pool management
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_pre_ping': True,  # Enable connection health checks before checkout
+            'pool_recycle': 3600,   # Recycle connections after 1 hour (prevents stale connections)
+            'pool_size': 10,        # Maximum number of permanent connections
+            'max_overflow': 20,     # Maximum overflow connections
+            'connect_args': {
+                'connect_timeout': 10  # Connection timeout in seconds
+            }
+        }
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = False  # Set to True for SQL query debugging

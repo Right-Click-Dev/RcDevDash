@@ -537,5 +537,39 @@ def dateformat(value, format='%Y-%m-%d'):
     return value.strftime(format)
 
 
+# CLI Commands for user management
+@app.cli.command('create-user')
+def create_user_command():
+    """Create a new user via Flask CLI"""
+    import getpass
+
+    username = input('Username: ')
+    password = getpass.getpass('Password: ')
+    password_confirm = getpass.getpass('Confirm Password: ')
+
+    if password != password_confirm:
+        print('Passwords do not match!')
+        return
+
+    # Check if user exists
+    if User.query.filter_by(username=username).first():
+        print(f'User "{username}" already exists!')
+        return
+
+    user = User(username=username, is_admin=True)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+    print(f'User "{username}" created successfully!')
+
+
+@app.cli.command('init-db')
+def init_db_command():
+    """Initialize the database with tables"""
+    db.create_all()
+    print('Database initialized!')
+
+
 if __name__ == '__main__':
     app.run(debug=True)
