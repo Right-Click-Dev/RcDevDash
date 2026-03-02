@@ -59,13 +59,36 @@
         <h5 class="mb-0"><i class="bi bi-check2-square"></i> My Tasks</h5>
     </div>
     <div class="card-body">
+        <!-- Add Task Form -->
+        <form method="POST" action="{{ url_for('add_task') }}" class="mb-4 p-3 bg-light rounded">
+            <input type="hidden" name="project_id" value="{{ project.id }}">
+            <input type="hidden" name="assigned_to_id" value="{{ current_user.id }}">
+            <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Add Task</h6>
+
+            <div class="mb-2">
+                <label for="task_description" class="form-label small">Task Description *</label>
+                <input type="text" class="form-control form-control-sm" id="task_description" name="description" required>
+            </div>
+
+            <div class="mb-2">
+                <label for="deadline" class="form-label small">Deadline</label>
+                <input type="date" class="form-control form-control-sm" id="deadline" name="deadline">
+            </div>
+
+            <button type="submit" class="btn btn-success btn-sm w-100">
+                <i class="bi bi-plus"></i> Add Task
+            </button>
+        </form>
+
+        <!-- Tasks List -->
         {% if tasks %}
         <div class="tasks-list">
             {% for task in tasks %}
-            <div class="d-flex align-items-start border-bottom pb-2 mb-2 task-item {% if task.completed %}task-completed{% endif %}">
+            <div class="d-flex align-items-start border-bottom pb-2 mb-2 task-item {% if task.completed %}task-completed{% endif %}" id="task-row-{{ task.id }}">
                 <div class="form-check me-2">
-                    <input class="form-check-input task-checkbox" type="checkbox"
+                    <input class="form-check-input dev-task-checkbox" type="checkbox"
                            data-task-id="{{ task.id }}"
+                           data-task-desc="{{ task.description }}"
                            {% if task.completed %}checked{% endif %}>
                 </div>
                 <div class="flex-grow-1">
@@ -97,4 +120,119 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Task Completion Modal -->
+<div class="modal fade" id="completeTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-check-circle"></i> Log Work for Completed Task</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Completing: <strong id="completeTaskDesc"></strong></p>
+                <div class="mb-3">
+                    <label for="completeHours" class="form-label">Hours Spent *</label>
+                    <input type="number" class="form-control" id="completeHours" step="0.25" min="0.25" required>
+                </div>
+                <div class="mb-3">
+                    <label for="completeNotes" class="form-label">What was done? *</label>
+                    <textarea class="form-control" id="completeNotes" rows="3" required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelComplete" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmComplete">
+                    <i class="bi bi-check-circle"></i> Complete & Log Time
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let pendingTaskId = null;
+    let pendingCheckbox = null;
+    const modal = new bootstrap.Modal(document.getElementById('completeTaskModal'));
+
+    document.querySelectorAll('.dev-task-checkbox').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function(e) {
+            const taskId = this.dataset.taskId;
+            const taskDesc = this.dataset.taskDesc;
+
+            if (this.checked) {
+                // Completing a task - show the modal
+                e.preventDefault();
+                this.checked = false;  // Revert until confirmed
+                pendingTaskId = taskId;
+                pendingCheckbox = this;
+                document.getElementById('completeTaskDesc').textContent = taskDesc;
+                document.getElementById('completeHours').value = '';
+                document.getElementById('completeNotes').value = '';
+                modal.show();
+            } else {
+                // Unchecking (un-completing) - just toggle directly
+                const formData = new FormData();
+                fetch('/api/task/' + taskId + '/toggle', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                        checkbox.checked = true;
+                    }
+                })
+                .catch(() => { alert('Error toggling task'); checkbox.checked = true; });
+            }
+        });
+    });
+
+    // Cancel resets state
+    document.getElementById('cancelComplete').addEventListener('click', function() {
+        pendingTaskId = null;
+        pendingCheckbox = null;
+    });
+
+    // Confirm completion with hours + notes
+    document.getElementById('confirmComplete').addEventListener('click', function() {
+        const hours = document.getElementById('completeHours').value;
+        const notes = document.getElementById('completeNotes').value.trim();
+
+        if (!hours || parseFloat(hours) <= 0) {
+            alert('Please enter hours spent.');
+            return;
+        }
+        if (!notes) {
+            alert('Please describe what was done.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('hours', hours);
+        formData.append('notes', notes);
+
+        fetch('/api/task/' + pendingTaskId + '/toggle', {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                modal.hide();
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(() => alert('Error completing task'));
+    });
+});
+</script>
 {% endblock %}

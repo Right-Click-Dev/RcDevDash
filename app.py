@@ -283,10 +283,25 @@ def add_task():
 @app.route('/api/task/<int:task_id>/toggle', methods=['POST'])
 @login_required
 def toggle_task(task_id):
-    """Toggle task completion status"""
+    """Toggle task completion status, optionally logging a work item"""
     try:
         task = Task.query.get_or_404(task_id)
         task.toggle_completed()
+
+        # If completing and hours/notes provided, create a work item
+        hours = request.form.get('hours')
+        notes = request.form.get('notes', '').strip()
+        if task.completed and hours:
+            hours_val = float(hours)
+            if hours_val > 0:
+                work_item = WorkItem(
+                    project_id=task.project_id,
+                    description=notes or f"Completed task: {task.description}",
+                    hours=hours_val,
+                    work_date=datetime.utcnow()
+                )
+                db.session.add(work_item)
+
         db.session.commit()
 
         return jsonify({'success': True, 'completed': task.completed})
