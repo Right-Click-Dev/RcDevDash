@@ -3,7 +3,9 @@
     "allow": [
       "Bash(dir:*)",
       "Bash(git -C \"C:\\Users\\crsch\\Desktop\\Coding\\UFC-AI\\BidMock\\RcDevDash\" log --oneline -10)",
-      "Bash(git -C \"C:\\Users\\crsch\\Desktop\\Coding\\UFC-AI\\BidMock\\RcDevDash\" config --local -l)"
+      "Bash(git -C \"C:\\Users\\crsch\\Desktop\\Coding\\UFC-AI\\BidMock\\RcDevDash\" config --local -l)",
+      "Bash(python migrate_billing.py)",
+      "Bash(timeout 5 python app.py)"
     ],
     "deny": [],
     "ask": []

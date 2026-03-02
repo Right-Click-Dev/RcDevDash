@@ -10,11 +10,28 @@ class User(UserMixin, db.Model):
     """User model for authentication"""
     __tablename__ = 'users'
 
+    # Role constants
+    ROLE_ADMIN = 'admin'
+    ROLE_DEVELOPER = 'developer'
+    ROLE_BILLING = 'billing'
+    ROLES = [ROLE_ADMIN, ROLE_DEVELOPER, ROLE_BILLING]
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=True)
+    role = db.Column(db.String(20), default=ROLE_ADMIN)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def can_access_dev(self):
+        """Check if user can access developer pages"""
+        return self.role in (self.ROLE_ADMIN, self.ROLE_DEVELOPER)
+
+    @property
+    def can_access_billing(self):
+        """Check if user can access billing pages"""
+        return self.role in (self.ROLE_ADMIN, self.ROLE_BILLING)
 
     def set_password(self, password):
         """Hash and set the user's password"""
@@ -37,12 +54,20 @@ class Project(db.Model):
     description = db.Column(db.Text)
     hours_budget = db.Column(db.Float, default=0.0)
     project_type = db.Column(db.String(50), default='External')  # External or Internal
+    halo_link = db.Column(db.String(500))
+    billing_client = db.Column(db.String(200))  # Who's paying (e.g., "ESRI")
+    billing_for = db.Column(db.String(200))  # Who the work is for (e.g., "TCG")
+    proposal_amount = db.Column(db.Float, default=0.0)
+    is_recurring = db.Column(db.Boolean, default=False)
+    monthly_amount = db.Column(db.Float, default=0.0)
+    project_notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     work_items = db.relationship('WorkItem', backref='project', lazy=True, cascade='all, delete-orphan')
     tasks = db.relationship('Task', backref='project', lazy=True, cascade='all, delete-orphan')
+    invoices = db.relationship('Invoice', backref='project', lazy=True, cascade='all, delete-orphan')
 
     @property
     def hours_used(self):
@@ -66,6 +91,23 @@ class Project(db.Model):
             return 0
         percentage = (self.hours_used / self.hours_budget) * 100
         return min(percentage, 100)  # Cap at 100%
+
+    @property
+    def total_invoiced(self):
+        """Calculate total amount invoiced"""
+        return sum(inv.amount for inv in self.invoices)
+
+    @property
+    def remaining_balance(self):
+        """Calculate remaining balance from proposal"""
+        return self.proposal_amount - self.total_invoiced
+
+    @property
+    def billing_display(self):
+        """Display string for billing relationship"""
+        if self.billing_client and self.billing_for:
+            return f"{self.billing_client} for {self.billing_for}"
+        return self.billing_client or self.billing_for or ''
 
     def __repr__(self):
         return f'<Project {self.name}>'
@@ -152,6 +194,22 @@ class LeadNote(db.Model):
 
     def __repr__(self):
         return f'<LeadNote {self.id}>'
+
+
+class Invoice(db.Model):
+    """Invoice model for tracking billing against projects"""
+    __tablename__ = 'invoices'
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    invoice_number = db.Column(db.String(100))
+    amount = db.Column(db.Float, nullable=False, default=0.0)
+    invoice_date = db.Column(db.Date, default=datetime.utcnow)
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Invoice {self.invoice_number}: ${self.amount:.2f}>'
 
 
 class LeadTask(db.Model):

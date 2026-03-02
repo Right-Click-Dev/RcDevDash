@@ -34,20 +34,23 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if user.is_admin %}
+                            {% if user.role == 'admin' %}
                             <span class="badge bg-warning text-dark"><i class="bi bi-shield-check"></i> Admin</span>
+                            {% elif user.role == 'billing' %}
+                            <span class="badge bg-success"><i class="bi bi-receipt-cutoff"></i> Billing</span>
                             {% else %}
-                            <span class="badge bg-secondary">User</span>
+                            <span class="badge bg-primary"><i class="bi bi-code-slash"></i> Developer</span>
                             {% endif %}
                         </td>
                         <td>{{ user.created_at|datetimeformat('%m/%d/%Y') }}</td>
                         <td class="text-end">
+                            <button class="btn btn-sm btn-outline-warning me-1" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ user.id }}">
+                                <i class="bi bi-key"></i> Reset Password
+                            </button>
                             {% if user.id != current_user.id %}
                             <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteUserModal{{ user.id }}">
                                 <i class="bi bi-trash"></i> Delete
                             </button>
-                            {% else %}
-                            <span class="text-muted small">Current account</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -83,9 +86,16 @@
                         <label for="password_confirm" class="form-label">Confirm Password *</label>
                         <input type="password" class="form-control" id="password_confirm" name="password_confirm" required>
                     </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin" checked>
-                        <label class="form-check-label" for="is_admin">Admin privileges</label>
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role *</label>
+                        <select class="form-select" id="role" name="role" required>
+                            <option value="admin">Admin (Full Access)</option>
+                            <option value="developer" selected>Developer (Dev Dashboard)</option>
+                            <option value="billing">Billing (Billing Dashboard)</option>
+                        </select>
+                        <div class="form-text">
+                            Admin: access to everything. Developer: dev dashboard only. Billing: billing dashboard only.
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -96,6 +106,37 @@
         </div>
     </div>
 </div>
+
+<!-- Reset Password Modals -->
+{% for user in users %}
+<div class="modal fade" id="resetPasswordModal{{ user.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-key"></i> Reset Password</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('reset_user_password', user_id=user.id) }}">
+                <div class="modal-body">
+                    <p>Set a new password for <strong>{{ user.username }}</strong>.</p>
+                    <div class="mb-3">
+                        <label for="new_password_{{ user.id }}" class="form-label">New Password *</label>
+                        <input type="password" class="form-control" id="new_password_{{ user.id }}" name="new_password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password_confirm_{{ user.id }}" class="form-label">Confirm New Password *</label>
+                        <input type="password" class="form-control" id="new_password_confirm_{{ user.id }}" name="new_password_confirm" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-key"></i> Reset Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
 
 <!-- Delete User Modals -->
 {% for user in users %}

@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}Billing - {{ project.name }} - RcDevDash{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('billing_dashboard') }}">Billing</a></li>
+                <li class="breadcrumb-item active">{{ project.name }}</li>
+            </ol>
+        </nav>
+        <h1>{{ project.name }}</h1>
+        {% if project.billing_display %}
+        <p class="text-muted mb-0 fs-5">{{ project.billing_display }}</p>
+        {% endif %}
+    </div>
+    <div>
+        <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#editBillingModal">
+            <i class="bi bi-pencil"></i> Edit Info
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column: Project & Billing Info -->
+    <div class="col-lg-5 mb-4">
+        <!-- Billing Info Card -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="bi bi-building"></i> Project Info</h5>
+            </div>
+            <div class="card-body">
+                {% if project.description %}
+                <div class="mb-3">
+                    <small class="text-muted text-uppercase fw-bold">Description</small>
+                    <p class="mb-0">{{ project.description }}</p>
+                </div>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <small class="text-muted text-uppercase fw-bold">Billing Client</small>
+                        <p class="mb-0 fw-bold">{{ project.billing_client or 'Not set' }}</p>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <small class="text-muted text-uppercase fw-bold">Work For</small>
+                        <p class="mb-0 fw-bold">{{ project.billing_for or 'Not set' }}</p>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <small class="text-muted text-uppercase fw-bold">Halo Link</small>
+                    {% if project.halo_link %}
+                    <p class="mb-0">
+                        <a href="{{ project.halo_link }}" target="_blank" class="text-decoration-none">
+                            <i class="bi bi-box-arrow-up-right"></i> Open Sales Order / Opportunity
+                        </a>
+                    </p>
+                    {% else %}
+                    <p class="mb-0 text-muted">No link set</p>
+                    {% endif %}
+                </div>
+
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <small class="text-muted text-uppercase fw-bold">Project Type</small>
+                        <p class="mb-0">
+                            <span class="badge bg-{{ 'primary' if project.project_type == 'External' else 'info' }}">
+                                {{ project.project_type }}
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <small class="text-muted text-uppercase fw-bold">Hours Budget</small>
+                        <p class="mb-0 fw-bold">{{ "%.1f"|format(project.hours_budget) }} hrs</p>
+                    </div>
+                </div>
+
+                {% if project.project_notes %}
+                <div class="mb-0">
+                    <small class="text-muted text-uppercase fw-bold">Notes</small>
+                    <p class="mb-0" style="white-space: pre-wrap;">{{ project.project_notes }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Financial Summary Card -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-currency-dollar"></i> Financial Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Proposal Amount:</span>
+                    <span class="fw-bold fs-5">${{ "{:,.2f}".format(project.proposal_amount) }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Total Invoiced:</span>
+                    <span class="fw-bold fs-5 text-primary">${{ "{:,.2f}".format(project.total_invoiced) }}</span>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="fw-bold">Remaining Balance:</span>
+                    <span class="fw-bold fs-4 {% if project.remaining_balance < 0 %}text-danger{% elif project.remaining_balance == 0 and project.proposal_amount > 0 %}text-warning{% else %}text-success{% endif %}">
+                        ${{ "{:,.2f}".format(project.remaining_balance) }}
+                    </span>
+                </div>
+
+                {% if project.proposal_amount > 0 %}
+                {% set inv_pct = (project.total_invoiced / project.proposal_amount * 100) | int %}
+                {% set inv_pct_capped = [inv_pct, 100] | min %}
+                <div class="progress mb-2" style="height: 25px;">
+                    <div class="progress-bar {% if inv_pct > 100 %}bg-danger{% else %}bg-success{% endif %}"
+                         role="progressbar"
+                         style="width: {{ inv_pct_capped }}%">
+                        {{ inv_pct }}% invoiced
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if project.is_recurring %}
+                <div class="mt-3 p-3 bg-light rounded border">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-arrow-repeat text-warning fs-4 me-2"></i>
+                        <div>
+                            <small class="text-muted text-uppercase fw-bold">Monthly Recurring</small>
+                            <p class="mb-0 fw-bold fs-5">${{ "{:,.2f}".format(project.monthly_amount) }} / month</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Invoices -->
+    <div class="col-lg-7 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-journal-text"></i> Invoices</h5>
+                <button class="btn btn-sm btn-light" data-bs-toggle="collapse" data-bs-target="#addInvoiceForm">
+                    <i class="bi bi-plus"></i> Add Invoice
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- Add Invoice Form (Collapsed) -->
+                <div class="collapse mb-4" id="addInvoiceForm">
+                    <form method="POST" action="{{ url_for('add_invoice') }}" class="p-3 bg-light rounded">
+                        <input type="hidden" name="project_id" value="{{ project.id }}">
+                        <h6 class="mb-3"><i class="bi bi-plus-circle"></i> New Invoice</h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <label for="invoice_number" class="form-label small">Invoice #</label>
+                                <input type="text" class="form-control form-control-sm" id="invoice_number" name="invoice_number" placeholder="INV-001">
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <label for="inv_amount" class="form-label small">Amount *</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" class="form-control" id="inv_amount" name="amount" step="0.01" min="0.01" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <label for="inv_date" class="form-label small">Date</label>
+                                <input type="date" class="form-control form-control-sm" id="inv_date" name="invoice_date" value="{{ now.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <label for="inv_desc" class="form-label small">Description</label>
+                                <input type="text" class="form-control form-control-sm" id="inv_desc" name="description" placeholder="Optional">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-sm mt-1">
+                            <i class="bi bi-plus"></i> Add Invoice
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Invoices List -->
+                {% if invoices %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Invoice #</th>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th class="text-end">Amount</th>
+                                <th class="text-end" style="width: 90px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for inv in invoices %}
+                            <tr>
+                                <td class="fw-bold">{{ inv.invoice_number or '-' }}</td>
+                                <td>{{ inv.invoice_date|dateformat('%b %d, %Y') }}</td>
+                                <td>{{ inv.description or '-' }}</td>
+                                <td class="text-end fw-bold">${{ "{:,.2f}".format(inv.amount) }}</td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-primary btn-sm"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#editInvoiceModal{{ inv.id }}" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form method="POST" action="{{ url_for('delete_invoice', invoice_id=inv.id) }}"
+                                              class="d-inline"
+                                              onsubmit="return confirm('Delete this invoice?');">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="3" class="fw-bold">Total Invoiced</td>
+                                <td class="text-end fw-bold fs-5">${{ "{:,.2f}".format(project.total_invoiced) }}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center my-4">
+                    <i class="bi bi-journal-x fs-1 d-block mb-2"></i>
+                    No invoices yet. Click "Add Invoice" to create one.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Billing Info Modal -->
+<div class="modal fade" id="editBillingModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> Edit Billing & Sales Info</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('update_project_info', project_id=project.id) }}">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_billing_client" class="form-label">Billing Client</label>
+                            <input type="text" class="form-control" id="edit_billing_client" name="billing_client"
+                                   value="{{ project.billing_client or '' }}" placeholder="e.g., ESRI">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_billing_for" class="form-label">Work For</label>
+                            <input type="text" class="form-control" id="edit_billing_for" name="billing_for"
+                                   value="{{ project.billing_for or '' }}" placeholder="e.g., TCG">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_halo_link" class="form-label">Halo Sales Order / Opportunity Link</label>
+                        <input type="url" class="form-control" id="edit_halo_link" name="halo_link"
+                               value="{{ project.halo_link or '' }}" placeholder="https://...">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_proposal_amount" class="form-label">Proposal Amount</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="edit_proposal_amount" name="proposal_amount"
+                                       step="0.01" min="0" value="{{ project.proposal_amount }}">
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Recurring Monthly?</label>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="edit_is_recurring" name="is_recurring"
+                                       {% if project.is_recurring %}checked{% endif %}
+                                       onchange="document.getElementById('monthlyAmountGroup').style.display = this.checked ? 'block' : 'none'">
+                                <label class="form-check-label" for="edit_is_recurring">Yes</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3" id="monthlyAmountGroup" style="display: {% if project.is_recurring %}block{% else %}none{% endif %};">
+                            <label for="edit_monthly_amount" class="form-label">Monthly Amount</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="edit_monthly_amount" name="monthly_amount"
+                                       step="0.01" min="0" value="{{ project.monthly_amount }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-0">
+                        <label for="edit_project_notes" class="form-label">Notes / Comments</label>
+                        <textarea class="form-control" id="edit_project_notes" name="project_notes"
+                                  rows="3" placeholder="General notes about this project...">{{ project.project_notes or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Invoice Modals -->
+{% for inv in invoices %}
+<div class="modal fade" id="editInvoiceModal{{ inv.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> Edit Invoice</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('edit_invoice', invoice_id=inv.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_inv_number{{ inv.id }}" class="form-label">Invoice #</label>
+                        <input type="text" class="form-control" id="edit_inv_number{{ inv.id }}"
+                               name="invoice_number" value="{{ inv.invoice_number or '' }}">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_inv_amount{{ inv.id }}" class="form-label">Amount *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="edit_inv_amount{{ inv.id }}"
+                                       name="amount" step="0.01" min="0.01" value="{{ inv.amount }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_inv_date{{ inv.id }}" class="form-label">Date</label>
+                            <input type="date" class="form-control" id="edit_inv_date{{ inv.id }}"
+                                   name="invoice_date" value="{{ inv.invoice_date.strftime('%Y-%m-%d') }}">
+                        </div>
+                    </div>
+                    <div class="mb-0">
+                        <label for="edit_inv_desc{{ inv.id }}" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="edit_inv_desc{{ inv.id }}"
+                               name="description" value="{{ inv.description or '' }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

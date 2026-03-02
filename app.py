@@ -3,7 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, login_required, current_user
 from datetime import datetime, date
 from config import Config
-from models import db, User, Project, WorkItem, Task, Lead, LeadNote, LeadTask
+from models import db, User, Project, WorkItem, Task, Lead, LeadNote, LeadTask, Invoice
 from auth import auth_bp
 from reports import generate_project_report
 
@@ -28,10 +28,47 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+# =============================================================================
+# ACCESS CONTROL DECORATORS
+# =============================================================================
+
+def admin_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_admin:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def billing_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.can_access_billing:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def dev_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.can_access_dev:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 @app.route('/')
 @login_required
 def home():
     """Home page - display all projects and leads"""
+    # Billing-only users get redirected to billing dashboard
+    if not current_user.can_access_dev:
+        return redirect(url_for('billing_dashboard'))
     external_projects = Project.query.filter_by(project_type='External').order_by(Project.updated_at.desc()).all()
     internal_projects = Project.query.filter_by(project_type='Internal').order_by(Project.updated_at.desc()).all()
     leads = Lead.query.order_by(Lead.updated_at.desc()).all()
@@ -57,6 +94,12 @@ def create_project():
         description = request.form.get('description', '')
         hours_budget = float(request.form.get('hours_budget', 0))
         project_type = request.form.get('project_type', 'External')
+        halo_link = request.form.get('halo_link', '').strip()
+        billing_client = request.form.get('billing_client', '').strip()
+        billing_for = request.form.get('billing_for', '').strip()
+        proposal_amount = float(request.form.get('proposal_amount', 0) or 0)
+        is_recurring = request.form.get('is_recurring') == 'on'
+        monthly_amount = float(request.form.get('monthly_amount', 0) or 0)
 
         if not name:
             flash('Project name is required.', 'error')
@@ -66,7 +109,13 @@ def create_project():
             name=name,
             description=description,
             hours_budget=hours_budget,
-            project_type=project_type
+            project_type=project_type,
+            halo_link=halo_link or None,
+            billing_client=billing_client or None,
+            billing_for=billing_for or None,
+            proposal_amount=proposal_amount,
+            is_recurring=is_recurring,
+            monthly_amount=monthly_amount
         )
         db.session.add(project)
         db.session.commit()
@@ -258,6 +307,130 @@ def generate_report(project_id):
     except Exception as e:
         flash(f'Error generating report: {str(e)}', 'error')
         return redirect(url_for('project_detail', project_id=project_id))
+
+
+# =============================================================================
+# BILLING & INVOICE ROUTES
+# =============================================================================
+
+@app.route('/billing')
+@billing_required
+def billing_dashboard():
+    """Billing dashboard - display all projects with financial info"""
+    projects = Project.query.order_by(Project.updated_at.desc()).all()
+    return render_template('billing_dashboard.html', projects=projects)
+
+
+@app.route('/billing/<int:project_id>')
+@billing_required
+def billing_detail(project_id):
+    """Billing detail page for a project"""
+    project = Project.query.get_or_404(project_id)
+    invoices = Invoice.query.filter_by(project_id=project_id).order_by(Invoice.invoice_date.desc()).all()
+    return render_template('billing_detail.html', project=project, invoices=invoices, now=datetime.now())
+
+
+@app.route('/api/project/<int:project_id>/update-info', methods=['POST'])
+@billing_required
+def update_project_info(project_id):
+    """Update project billing info, Halo link, and notes"""
+    try:
+        project = Project.query.get_or_404(project_id)
+
+        project.halo_link = request.form.get('halo_link', '').strip() or None
+        project.billing_client = request.form.get('billing_client', '').strip() or None
+        project.billing_for = request.form.get('billing_for', '').strip() or None
+        project.proposal_amount = float(request.form.get('proposal_amount', 0) or 0)
+        project.is_recurring = request.form.get('is_recurring') == 'on'
+        project.monthly_amount = float(request.form.get('monthly_amount', 0) or 0)
+        project.project_notes = request.form.get('project_notes', '').strip() or None
+
+        db.session.commit()
+        flash('Project info updated successfully!', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating project info: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/api/invoice/add', methods=['POST'])
+@billing_required
+def add_invoice():
+    """Add an invoice to a project"""
+    try:
+        project_id = int(request.form.get('project_id'))
+        invoice_number = request.form.get('invoice_number', '').strip()
+        amount = float(request.form.get('amount', 0))
+        description = request.form.get('description', '').strip()
+        invoice_date_str = request.form.get('invoice_date')
+
+        if amount <= 0:
+            flash('Invoice amount must be greater than zero.', 'error')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        invoice_date = datetime.strptime(invoice_date_str, '%Y-%m-%d').date() if invoice_date_str else date.today()
+
+        invoice = Invoice(
+            project_id=project_id,
+            invoice_number=invoice_number or None,
+            amount=amount,
+            invoice_date=invoice_date,
+            description=description or None
+        )
+        db.session.add(invoice)
+        db.session.commit()
+
+        flash('Invoice added successfully!', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error adding invoice: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/api/invoice/<int:invoice_id>/edit', methods=['POST'])
+@billing_required
+def edit_invoice(invoice_id):
+    """Edit an invoice"""
+    try:
+        invoice = Invoice.query.get_or_404(invoice_id)
+        project_id = invoice.project_id
+
+        invoice.invoice_number = request.form.get('invoice_number', '').strip() or None
+        invoice.amount = float(request.form.get('amount', 0))
+        invoice.description = request.form.get('description', '').strip() or None
+        invoice_date_str = request.form.get('invoice_date')
+        if invoice_date_str:
+            invoice.invoice_date = datetime.strptime(invoice_date_str, '%Y-%m-%d').date()
+
+        db.session.commit()
+        flash('Invoice updated successfully!', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating invoice: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/api/invoice/<int:invoice_id>/delete', methods=['POST'])
+@billing_required
+def delete_invoice(invoice_id):
+    """Delete an invoice"""
+    try:
+        invoice = Invoice.query.get_or_404(invoice_id)
+        project_id = invoice.project_id
+        db.session.delete(invoice)
+        db.session.commit()
+        flash('Invoice deleted successfully.', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting invoice: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
 
 
 # =============================================================================
@@ -525,16 +698,6 @@ def delete_lead_task(task_id):
 # USER MANAGEMENT ROUTES
 # =============================================================================
 
-def admin_required(f):
-    @wraps(f)
-    @login_required
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_admin:
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 @app.route('/users')
 @admin_required
 def user_management():
@@ -549,7 +712,8 @@ def create_user():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         password_confirm = request.form.get('password_confirm', '')
-        is_admin = request.form.get('is_admin') == 'on'
+        role = request.form.get('role', 'developer')
+        is_admin = (role == 'admin')
 
         if not username or not password:
             flash('Username and password are required.', 'error')
@@ -563,7 +727,7 @@ def create_user():
             flash(f'User "{username}" already exists.', 'error')
             return redirect(url_for('user_management'))
 
-        user = User(username=username, is_admin=is_admin)
+        user = User(username=username, is_admin=is_admin, role=role)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
@@ -596,6 +760,34 @@ def delete_user(user_id):
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting user: {str(e)}', 'error')
+        return redirect(url_for('user_management'))
+
+
+@app.route('/api/user/<int:user_id>/reset-password', methods=['POST'])
+@admin_required
+def reset_user_password(user_id):
+    try:
+        user = User.query.get_or_404(user_id)
+        new_password = request.form.get('new_password', '')
+        new_password_confirm = request.form.get('new_password_confirm', '')
+
+        if not new_password:
+            flash('New password is required.', 'error')
+            return redirect(url_for('user_management'))
+
+        if new_password != new_password_confirm:
+            flash('Passwords do not match.', 'error')
+            return redirect(url_for('user_management'))
+
+        user.set_password(new_password)
+        db.session.commit()
+
+        flash(f'Password for "{user.username}" reset successfully!', 'success')
+        return redirect(url_for('user_management'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error resetting password: {str(e)}', 'error')
         return redirect(url_for('user_management'))
 
 

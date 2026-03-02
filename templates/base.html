@@ -27,11 +27,20 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if current_user.is_authenticated %}
                 <ul class="navbar-nav ms-auto">
+                    {% if current_user.can_access_dev %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('home') }}">
-                            <i class="bi bi-house-door"></i> Home
+                            <i class="bi bi-kanban"></i> Development
                         </a>
                     </li>
+                    {% endif %}
+                    {% if current_user.can_access_billing %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('billing_dashboard') }}">
+                            <i class="bi bi-receipt-cutoff"></i> Billing
+                        </a>
+                    </li>
+                    {% endif %}
                     {% if current_user.is_admin %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('user_management') }}">
