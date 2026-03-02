@@ -140,7 +140,11 @@ class WorkItem(db.Model):
     description = db.Column(db.Text, nullable=False)
     hours = db.Column(db.Float, nullable=False)
     work_date = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    created_by = db.relationship('User', backref='work_items_created', foreign_keys=[created_by_id])
 
     def __repr__(self):
         return f'<WorkItem {self.id}: {self.hours}hrs>'

@@ -199,7 +199,7 @@ def add_work_item():
 @app.route('/api/workitem/<int:workitem_id>/edit', methods=['POST'])
 @admin_required
 def edit_work_item(workitem_id):
-    """Edit a work item"""
+    """Edit a work item (admin only)"""
     try:
         work_item = WorkItem.query.get_or_404(workitem_id)
         project_id = work_item.project_id
@@ -226,6 +226,38 @@ def edit_work_item(workitem_id):
         db.session.rollback()
         flash(f'Error updating work item: {str(e)}', 'error')
         return redirect(url_for('project_detail', project_id=project_id))
+
+
+@app.route('/api/workitem/<int:workitem_id>/dev-edit', methods=['POST'])
+@login_required
+def dev_edit_work_item(workitem_id):
+    """Edit a work item (owner only - for developers editing their own submissions)"""
+    try:
+        work_item = WorkItem.query.get_or_404(workitem_id)
+        project_id = work_item.project_id
+
+        # Only the creator can edit their own work items
+        if work_item.created_by_id != current_user.id:
+            abort(403)
+
+        description = request.form.get('description')
+        hours = float(request.form.get('hours', 0))
+
+        if not description or hours <= 0:
+            flash('Description and valid hours are required.', 'error')
+            return redirect(url_for('dev_project_view', project_id=project_id))
+
+        work_item.description = description
+        work_item.hours = hours
+
+        db.session.commit()
+        flash('Work entry updated successfully!', 'success')
+        return redirect(url_for('dev_project_view', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating work entry: {str(e)}', 'error')
+        return redirect(url_for('dev_project_view', project_id=project_id))
 
 
 @app.route('/api/workitem/<int:workitem_id>/delete', methods=['POST'])
@@ -298,7 +330,8 @@ def toggle_task(task_id):
                     project_id=task.project_id,
                     description=notes or f"Completed task: {task.description}",
                     hours=hours_val,
-                    work_date=datetime.utcnow()
+                    work_date=datetime.utcnow(),
+                    created_by_id=current_user.id
                 )
                 db.session.add(work_item)
 
@@ -309,6 +342,38 @@ def toggle_task(task_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/task/<int:task_id>/dev-edit', methods=['POST'])
+@login_required
+def dev_edit_task(task_id):
+    """Edit a task (for developers editing their own tasks)"""
+    try:
+        task = Task.query.get_or_404(task_id)
+        project_id = task.project_id
+
+        # Only the assigned developer can edit their own tasks
+        if task.assigned_to_id != current_user.id:
+            abort(403)
+
+        description = request.form.get('description')
+        deadline_str = request.form.get('deadline')
+
+        if not description:
+            flash('Task description is required.', 'error')
+            return redirect(url_for('dev_project_view', project_id=project_id))
+
+        task.description = description
+        task.deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date() if deadline_str else None
+
+        db.session.commit()
+        flash('Task updated successfully!', 'success')
+        return redirect(url_for('dev_project_view', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating task: {str(e)}', 'error')
+        return redirect(url_for('dev_project_view', project_id=project_id))
 
 
 @app.route('/api/task/<int:task_id>/delete', methods=['POST'])
@@ -374,7 +439,8 @@ def dev_project_view(project_id):
     """Developer-focused project view showing only their tasks"""
     project = Project.query.get_or_404(project_id)
     my_tasks = Task.query.filter_by(project_id=project_id, assigned_to_id=current_user.id).order_by(Task.completed, Task.deadline).all()
-    return render_template('dev_project_view.html', project=project, tasks=my_tasks, now=datetime.now())
+    my_work_items = WorkItem.query.filter_by(project_id=project_id, created_by_id=current_user.id).order_by(WorkItem.work_date.desc()).all()
+    return render_template('dev_project_view.html', project=project, tasks=my_tasks, work_items=my_work_items, now=datetime.now())
 
 
 @app.route('/report/<int:project_id>')

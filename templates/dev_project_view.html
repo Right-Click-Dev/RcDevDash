@@ -105,6 +105,11 @@
                     </small>
                     {% endif %}
                 </div>
+                {% if not task.completed %}
+                <button class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}" title="Edit task">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -117,6 +122,52 @@
         </div>
         {% else %}
         <p class="text-muted text-center">No tasks assigned to you for this project.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- My Work Entries Section -->
+<div class="card shadow-sm mt-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> My Work Entries</h5>
+    </div>
+    <div class="card-body">
+        {% if work_items %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th class="text-end">Hours</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in work_items %}
+                    <tr>
+                        <td><small>{{ item.work_date|dateformat('%b %d, %Y') }}</small></td>
+                        <td>{{ item.description }}</td>
+                        <td class="text-end fw-bold">{{ "%.2f"|format(item.hours) }}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editWorkItemModal{{ item.id }}" title="Edit entry">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2 pt-2 border-top">
+            <small class="text-muted">
+                <i class="bi bi-info-circle"></i>
+                {{ work_items|length }} entr{{ 'y' if work_items|length == 1 else 'ies' }} &mdash;
+                {{ "%.1f"|format(work_items|sum(attribute='hours')) }} total hours logged
+            </small>
+        </div>
+        {% else %}
+        <p class="text-muted text-center mb-0">No work entries yet. Complete a task to log time.</p>
         {% endif %}
     </div>
 </div>
@@ -149,6 +200,68 @@
         </div>
     </div>
 </div>
+
+<!-- Edit Task Modals -->
+{% for task in tasks %}
+{% if not task.completed %}
+<div class="modal fade" id="editTaskModal{{ task.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> Edit Task</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('dev_edit_task', task_id=task.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_task_desc_{{ task.id }}" class="form-label">Description *</label>
+                        <input type="text" class="form-control" id="edit_task_desc_{{ task.id }}" name="description" value="{{ task.description }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_task_deadline_{{ task.id }}" class="form-label">Deadline</label>
+                        <input type="date" class="form-control" id="edit_task_deadline_{{ task.id }}" name="deadline" value="{{ task.deadline|dateformat('%Y-%m-%d') if task.deadline else '' }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<!-- Edit Work Item Modals -->
+{% for item in work_items %}
+<div class="modal fade" id="editWorkItemModal{{ item.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> Edit Work Entry</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('dev_edit_work_item', workitem_id=item.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_wi_desc_{{ item.id }}" class="form-label">Description *</label>
+                        <textarea class="form-control" id="edit_wi_desc_{{ item.id }}" name="description" rows="3" required>{{ item.description }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_wi_hours_{{ item.id }}" class="form-label">Hours *</label>
+                        <input type="number" class="form-control" id="edit_wi_hours_{{ item.id }}" name="hours" step="0.25" min="0.25" value="{{ item.hours }}" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
 {% endblock %}
 
 {% block extra_js %}
