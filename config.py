@@ -31,7 +31,7 @@ class Config:
         # MySQL-specific engine options for connection pool management
         SQLALCHEMY_ENGINE_OPTIONS = {
             'pool_pre_ping': True,  # Enable connection health checks before checkout
-            'pool_recycle': 3600,   # Recycle connections after 1 hour (prevents stale connections)
+            'pool_recycle': 280,    # Recycle connections before PythonAnywhere's 300s timeout
             'pool_size': 10,        # Maximum number of permanent connections
             'max_overflow': 20,     # Maximum overflow connections
             'connect_args': {
