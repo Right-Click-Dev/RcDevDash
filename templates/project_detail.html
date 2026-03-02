@@ -133,6 +133,7 @@
                                     <span class="badge bg-primary ms-2">{{ "%.2f"|format(item.hours) }} hrs</span>
                                     <p class="mb-0 mt-1">{{ item.description }}</p>
                                 </div>
+                                {% if current_user.is_admin %}
                                 <div class="btn-group btn-group-sm ms-2">
                                     <button type="button" class="btn btn-outline-primary btn-sm"
                                             data-bs-toggle="modal"
@@ -148,9 +149,11 @@
                                         </button>
                                     </form>
                                 </div>
+                                {% endif %}
                             </div>
                         </div>
 
+                        {% if current_user.is_admin %}
                         <!-- Edit Work Item Modal -->
                         <div class="modal fade" id="editWorkItemModal{{ item.id }}" tabindex="-1">
                             <div class="modal-dialog">
@@ -187,6 +190,7 @@
                                 </div>
                             </div>
                         </div>
+                        {% endif %}
                         {% endfor %}
                     {% else %}
                         <p class="text-muted text-center">No work items yet.</p>

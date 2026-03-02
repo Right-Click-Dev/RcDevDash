@@ -197,7 +197,7 @@ def add_work_item():
 
 
 @app.route('/api/workitem/<int:workitem_id>/edit', methods=['POST'])
-@login_required
+@admin_required
 def edit_work_item(workitem_id):
     """Edit a work item"""
     try:
@@ -229,7 +229,7 @@ def edit_work_item(workitem_id):
 
 
 @app.route('/api/workitem/<int:workitem_id>/delete', methods=['POST'])
-@login_required
+@admin_required
 def delete_work_item(workitem_id):
     """Delete a work item"""
     try:
