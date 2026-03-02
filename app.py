@@ -857,6 +857,34 @@ def reset_user_password(user_id):
         return redirect(url_for('user_management'))
 
 
+@app.route('/api/user/<int:user_id>/change-role', methods=['POST'])
+@admin_required
+def change_user_role(user_id):
+    try:
+        user = User.query.get_or_404(user_id)
+
+        if user.id == current_user.id:
+            flash('You cannot change your own role.', 'error')
+            return redirect(url_for('user_management'))
+
+        role = request.form.get('role', '')
+        if role not in User.ROLES:
+            flash('Invalid role selected.', 'error')
+            return redirect(url_for('user_management'))
+
+        user.role = role
+        user.is_admin = (role == 'admin')
+        db.session.commit()
+
+        flash(f'Role for "{user.username}" changed to {role}.', 'success')
+        return redirect(url_for('user_management'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error changing role: {str(e)}', 'error')
+        return redirect(url_for('user_management'))
+
+
 # Template filters
 @app.template_filter('datetimeformat')
 def datetimeformat(value, format='%Y-%m-%d %H:%M'):

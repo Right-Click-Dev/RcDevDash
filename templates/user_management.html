@@ -44,6 +44,11 @@
                         </td>
                         <td>{{ user.created_at|datetimeformat('%m/%d/%Y') }}</td>
                         <td class="text-end">
+                            {% if user.id != current_user.id %}
+                            <button class="btn btn-sm btn-outline-info me-1" data-bs-toggle="modal" data-bs-target="#changeRoleModal{{ user.id }}">
+                                <i class="bi bi-person-gear"></i> Role
+                            </button>
+                            {% endif %}
                             <button class="btn btn-sm btn-outline-warning me-1" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ user.id }}">
                                 <i class="bi bi-key"></i> Reset Password
                             </button>
@@ -136,6 +141,42 @@
         </div>
     </div>
 </div>
+{% endfor %}
+
+<!-- Change Role Modals -->
+{% for user in users %}
+{% if user.id != current_user.id %}
+<div class="modal fade" id="changeRoleModal{{ user.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-person-gear"></i> Change Role</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('change_user_role', user_id=user.id) }}">
+                <div class="modal-body">
+                    <p>Change role for <strong>{{ user.username }}</strong>.</p>
+                    <div class="mb-3">
+                        <label for="role_{{ user.id }}" class="form-label">Role *</label>
+                        <select class="form-select" id="role_{{ user.id }}" name="role" required>
+                            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin (Full Access)</option>
+                            <option value="developer" {% if user.role == 'developer' %}selected{% endif %}>Developer (Dev Dashboard)</option>
+                            <option value="billing" {% if user.role == 'billing' %}selected{% endif %}>Billing (Billing Dashboard)</option>
+                        </select>
+                        <div class="form-text">
+                            Admin: access to everything. Developer: dev dashboard only. Billing: billing dashboard only.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info text-white"><i class="bi bi-save"></i> Save Role</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endfor %}
 
 <!-- Delete User Modals -->
