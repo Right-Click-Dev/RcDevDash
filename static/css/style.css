@@ -68,7 +68,7 @@ main { flex: 1; padding-bottom: 2rem; }
 
 h1, h2, h3, h4, h5, h6 {
     font-weight: 700;
-    color: var(--clr-text);
+    color: inherit;
     letter-spacing: -0.01em;
     line-height: 1.3;
 }
