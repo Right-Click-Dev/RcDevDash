@@ -20,8 +20,8 @@
             <span class="badge bg-warning text-dark fs-6 align-middle">On Hold</span>
             {% endif %}
         </h1>
-        {% if project.billing_display %}
-        <p class="text-muted mb-0">{{ project.billing_display }}</p>
+        {% if project.client %}
+        <p class="text-muted mb-0">{{ project.client.name }}</p>
         {% endif %}
     </div>
     <div class="d-flex gap-2">
@@ -68,23 +68,10 @@
                 </div>
                 {% endif %}
 
-                <div class="row">
-                    <div class="col-6 mb-3">
-                        <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Billing Client</small>
-                        <p class="mb-0 fw-bold">{{ project.billing_client or 'Not set' }}</p>
-                    </div>
-                    <div class="col-6 mb-3">
-                        <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Work For</small>
-                        <p class="mb-0 fw-bold">{{ project.billing_for or 'Not set' }}</p>
-                    </div>
-                </div>
-
-                {% if project.client %}
                 <div class="mb-3">
                     <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Client</small>
-                    <p class="mb-0 fw-bold"><i class="bi bi-building me-1"></i>{{ project.client.name }}</p>
+                    <p class="mb-0 fw-bold"><i class="bi bi-building me-1"></i>{{ project.client.name if project.client else 'Not set' }}</p>
                 </div>
-                {% endif %}
 
                 <div class="mb-3">
                     <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Halo Link</small>
@@ -146,6 +133,12 @@
                     <span class="text-muted">Proposal Amount:</span>
                     <span class="fw-bold fs-5">${{ "{:,.2f}".format(project.proposal_amount) }}</span>
                 </div>
+                {% if project.total_extension_amount > 0 %}
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Extensions:</span>
+                    <span class="fw-bold text-warning">+${{ "{:,.2f}".format(project.total_extension_amount) }}</span>
+                </div>
+                {% endif %}
                 {% if project.total_phase_amount > 0 %}
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Total Phase Value:</span>
@@ -250,11 +243,11 @@
                     <span class="fw-bold">{{ "%.1f"|format(project.hours_used) }} hrs</span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Cost Rate:</span>
+                    <span class="text-muted">Labor Rate:</span>
                     <span class="fw-bold">${{ "{:,.2f}".format(project.hourly_cost_rate) }} / hr</span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Dev Cost:</span>
+                    <span class="text-muted">Total Labor Costs:</span>
                     <span class="fw-bold text-danger">${{ "{:,.2f}".format(project.dev_cost) }}</span>
                 </div>
                 {% if project.total_expenses > 0 %}
@@ -285,13 +278,21 @@
                     </span>
                 </div>
                 {% if project.proposal_amount > 0 %}
+                <small class="text-muted fw-bold d-block mb-1">Expense Utilization</small>
                 <div class="progress" style="height: 22px;">
                     {% set cost_pct = ((project.total_cost / project.proposal_amount) * 100) | int %}
                     {% set cost_pct_capped = [cost_pct, 100] | min %}
-                    <div class="progress-bar {% if cost_pct > 80 %}bg-danger{% elif cost_pct > 60 %}bg-warning{% else %}bg-info{% endif %}"
+                    {% set profit_pct = [100 - cost_pct, 0] | max %}
+                    <div class="progress-bar bg-danger"
                          role="progressbar" style="width: {{ cost_pct_capped }}%">
-                        {{ cost_pct }}% cost
+                        {{ cost_pct }}% Cost
                     </div>
+                    {% if profit_pct > 0 %}
+                    <div class="progress-bar bg-success"
+                         role="progressbar" style="width: {{ profit_pct }}%">
+                        {{ profit_pct }}% Profit
+                    </div>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -428,6 +429,15 @@
                                     <input type="number" class="form-control form-control-sm" id="phase_hours" name="hours_budget" step="0.5" min="0" value="0">
                                 </div>
                             </div>
+                            <div class="mb-2">
+                                <label for="phase_link" class="form-label small">Link</label>
+                                <input type="url" class="form-control form-control-sm" id="phase_link" name="link" placeholder="https://example.com/document">
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="phase_extension" name="is_extension">
+                                <label class="form-check-label small" for="phase_extension">Extension</label>
+                                <small class="text-muted d-block">Adds amount on top of the proposal instead of being part of it</small>
+                            </div>
                             <button type="submit" class="btn btn-info btn-sm mt-1 text-white">
                                 <i class="bi bi-plus me-1"></i> Add Phase
                             </button>
@@ -453,6 +463,10 @@
                             <tr>
                                 <td>
                                     <span class="fw-bold">{{ phase.name }}</span>
+                                    {% if phase.link %} <a href="{{ phase.link }}" target="_blank" title="{{ phase.link }}"><i class="bi bi-link-45deg"></i></a>{% endif %}
+                                    {% if phase.is_extension %}
+                                    <span class="badge bg-warning text-dark ms-1" style="font-size: 0.65rem;">Extension</span>
+                                    {% endif %}
                                     {% if phase.description %}
                                     <br><small class="text-muted">{{ phase.description[:60] }}</small>
                                     {% endif %}
@@ -656,6 +670,10 @@
                                     <input type="date" class="form-control form-control-sm" id="expense_date" name="expense_date" value="{{ now.strftime('%Y-%m-%d') }}">
                                 </div>
                             </div>
+                            <div class="mb-2">
+                                <label for="expense_link" class="form-label small">Link</label>
+                                <input type="url" class="form-control form-control-sm" id="expense_link" name="link" placeholder="https://example.com/receipt">
+                            </div>
                             <button type="submit" class="btn btn-danger btn-sm mt-1">
                                 <i class="bi bi-plus me-1"></i> Add Expense
                             </button>
@@ -680,7 +698,7 @@
                         <tbody>
                             {% for exp in expenses %}
                             <tr class="{{ 'opacity-75' if exp.invoiced }}">
-                                <td>{{ exp.description }}</td>
+                                <td>{{ exp.description }}{% if exp.link %} <a href="{{ exp.link }}" target="_blank" title="{{ exp.link }}"><i class="bi bi-link-45deg"></i></a>{% endif %}</td>
                                 <td><span class="badge bg-light text-dark">{{ exp.category }}</span></td>
                                 <td class="text-muted">{{ exp.expense_date|dateformat('%b %d, %Y') }}</td>
                                 <td class="text-end fw-bold">${{ "{:,.2f}".format(exp.amount) }}</td>
@@ -853,18 +871,6 @@
 
                     <!-- Billing & Sales Section -->
                     <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 0.05em;">Billing & Sales</h6>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="edit_billing_client" class="form-label">Billing Client</label>
-                            <input type="text" class="form-control" id="edit_billing_client" name="billing_client"
-                                   value="{{ project.billing_client or '' }}" placeholder="e.g., ESRI">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="edit_billing_for" class="form-label">Work For</label>
-                            <input type="text" class="form-control" id="edit_billing_for" name="billing_for"
-                                   value="{{ project.billing_for or '' }}" placeholder="e.g., TCG">
-                        </div>
-                    </div>
                     <div class="mb-3">
                         <label for="edit_halo_link" class="form-label">Halo Sales Order / Opportunity Link</label>
                         <input type="url" class="form-control" id="edit_halo_link" name="halo_link"
@@ -1043,6 +1049,11 @@
                             </div>
                         </div>
                     </div>
+                    <div class="mb-3">
+                        <label for="edit_exp_link{{ exp.id }}" class="form-label">Link</label>
+                        <input type="url" class="form-control" id="edit_exp_link{{ exp.id }}"
+                               name="link" value="{{ exp.link or '' }}" placeholder="https://example.com/receipt">
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -1089,6 +1100,16 @@
                             <input type="number" class="form-control" id="edit_phase_hours{{ phase.id }}"
                                    name="hours_budget" step="0.5" min="0" value="{{ phase.hours_budget }}">
                         </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_phase_link{{ phase.id }}" class="form-label">Link</label>
+                        <input type="url" class="form-control" id="edit_phase_link{{ phase.id }}"
+                               name="link" value="{{ phase.link or '' }}" placeholder="https://example.com/document">
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="edit_phase_extension{{ phase.id }}" name="is_extension" {% if phase.is_extension %}checked{% endif %}>
+                        <label class="form-check-label" for="edit_phase_extension{{ phase.id }}">Extension</label>
+                        <small class="text-muted d-block">Adds amount on top of the proposal instead of being part of it</small>
                     </div>
                 </div>
                 <div class="modal-footer">

@@ -61,6 +61,9 @@ class Client(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), unique=True, nullable=False)
+    contact_name = db.Column(db.String(200))
+    contact_email = db.Column(db.String(200))
+    contact_phone = db.Column(db.String(50))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -164,8 +167,8 @@ class Project(db.Model):
 
     @property
     def remaining_balance(self):
-        """Calculate remaining balance including uninvoiced expenses and monthly support"""
-        return self.proposal_amount + self.total_uninvoiced_expenses + self.monthly_support_amount_accrued - self.total_invoiced
+        """Calculate remaining balance including uninvoiced expenses, monthly support, and extensions"""
+        return self.proposal_amount + self.total_extension_amount + self.total_uninvoiced_expenses + self.monthly_support_amount_accrued - self.total_invoiced
 
     @property
     def billing_display(self):
@@ -178,6 +181,11 @@ class Project(db.Model):
     def total_phase_amount(self):
         """Calculate total amount across all phases"""
         return sum(p.amount for p in self.phases)
+
+    @property
+    def total_extension_amount(self):
+        """Calculate total amount from extension phases"""
+        return sum(p.amount for p in self.phases if p.is_extension)
 
     @property
     def is_archived(self):
@@ -404,6 +412,8 @@ class Phase(db.Model):
     description = db.Column(db.Text)
     amount = db.Column(db.Float, default=0.0)
     hours_budget = db.Column(db.Float, default=0.0)
+    is_extension = db.Column(db.Boolean, default=False)
+    link = db.Column(db.String(500), nullable=True)
     status = db.Column(db.String(50), default='not_started')
     sort_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -453,6 +463,7 @@ class Expense(db.Model):
     amount = db.Column(db.Float, nullable=False, default=0.0)
     category = db.Column(db.String(100), default='General')
     expense_date = db.Column(db.Date, default=datetime.utcnow)
+    link = db.Column(db.String(500), nullable=True)
     invoiced = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

@@ -597,7 +597,15 @@ def billing_dashboard():
         base_query = base_query.filter(Project.status != 'archived')
     projects = base_query.order_by(Project.updated_at.desc()).all()
     clients = Client.query.order_by(Client.name).all()
-    return render_template('billing_dashboard.html', projects=projects, clients=clients, show_archived=show_archived)
+
+    # Group projects by client name
+    from collections import OrderedDict
+    grouped = OrderedDict()
+    for project in projects:
+        client_name = project.client.name if project.client else 'Unassigned'
+        grouped.setdefault(client_name, []).append(project)
+
+    return render_template('billing_dashboard.html', projects=projects, grouped_projects=grouped, clients=clients, show_archived=show_archived)
 
 
 @app.route('/billing/<int:project_id>')
@@ -779,12 +787,15 @@ def add_expense():
 
         expense_date = datetime.strptime(expense_date_str, '%Y-%m-%d').date() if expense_date_str else date.today()
 
+        link = request.form.get('link', '').strip() or None
+
         expense = Expense(
             project_id=project_id,
             description=description,
             amount=amount,
             category=category or 'General',
-            expense_date=expense_date
+            expense_date=expense_date,
+            link=link
         )
         db.session.add(expense)
         db.session.commit()
@@ -809,6 +820,7 @@ def edit_expense(expense_id):
         expense.description = request.form.get('description', '').strip()
         expense.amount = float(request.form.get('amount', 0))
         expense.category = request.form.get('category', 'General').strip() or 'General'
+        expense.link = request.form.get('link', '').strip() or None
         expense.invoiced = request.form.get('invoiced') == 'on'
         expense_date_str = request.form.get('expense_date')
         if expense_date_str:
@@ -938,6 +950,14 @@ def reactivate_project(project_id):
 # CLIENT ROUTES
 # =============================================================================
 
+@app.route('/clients')
+@admin_required
+def client_management():
+    """Client management page"""
+    clients = Client.query.order_by(Client.name).all()
+    return render_template('client_management.html', clients=clients)
+
+
 @app.route('/api/client/create', methods=['POST'])
 @login_required
 def create_client():
@@ -953,15 +973,67 @@ def create_client():
             flash(f'Client "{name}" already exists.', 'error')
             return redirect(request.referrer or url_for('home'))
 
-        client = Client(name=name)
+        client = Client(
+            name=name,
+            contact_name=request.form.get('contact_name', '').strip() or None,
+            contact_email=request.form.get('contact_email', '').strip() or None,
+            contact_phone=request.form.get('contact_phone', '').strip() or None,
+        )
         db.session.add(client)
         db.session.commit()
         flash(f'Client "{name}" created successfully!', 'success')
-        return redirect(request.referrer or url_for('home'))
+        return redirect(request.referrer or url_for('client_management'))
     except Exception as e:
         db.session.rollback()
         flash(f'Error creating client: {str(e)}', 'error')
         return redirect(request.referrer or url_for('home'))
+
+
+@app.route('/api/client/<int:client_id>/update', methods=['POST'])
+@admin_required
+def update_client(client_id):
+    """Update a client"""
+    client = Client.query.get_or_404(client_id)
+    try:
+        name = request.form.get('name', '').strip()
+        if not name:
+            flash('Client name is required.', 'error')
+            return redirect(url_for('client_management'))
+
+        existing = Client.query.filter(Client.name == name, Client.id != client_id).first()
+        if existing:
+            flash(f'Client "{name}" already exists.', 'error')
+            return redirect(url_for('client_management'))
+
+        client.name = name
+        client.contact_name = request.form.get('contact_name', '').strip() or None
+        client.contact_email = request.form.get('contact_email', '').strip() or None
+        client.contact_phone = request.form.get('contact_phone', '').strip() or None
+        db.session.commit()
+        flash(f'Client "{name}" updated successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating client: {str(e)}', 'error')
+    return redirect(url_for('client_management'))
+
+
+@app.route('/api/client/<int:client_id>/delete', methods=['POST'])
+@admin_required
+def delete_client(client_id):
+    """Delete a client"""
+    client = Client.query.get_or_404(client_id)
+    try:
+        if client.projects:
+            flash(f'Cannot delete "{client.name}" — it has {len(client.projects)} project(s) assigned.', 'error')
+            return redirect(url_for('client_management'))
+        name = client.name
+        db.session.delete(client)
+        db.session.commit()
+        flash(f'Client "{name}" deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting client: {str(e)}', 'error')
+    return redirect(url_for('client_management'))
 
 
 # =============================================================================
@@ -1047,6 +1119,7 @@ def add_phase():
         description = request.form.get('description', '').strip()
         amount = float(request.form.get('amount', 0) or 0)
         hours_budget = float(request.form.get('hours_budget', 0) or 0)
+        is_extension = request.form.get('is_extension') == 'on'
         redirect_to = request.form.get('redirect_to', 'billing')
 
         redirect_url = url_for('project_detail', project_id=project_id) if redirect_to == 'dev' else url_for('billing_detail', project_id=project_id)
@@ -1058,12 +1131,16 @@ def add_phase():
         # Get next sort order
         max_order = db.session.query(db.func.max(Phase.sort_order)).filter_by(project_id=project_id).scalar() or 0
 
+        link = request.form.get('link', '').strip() or None
+
         phase = Phase(
             project_id=project_id,
             name=name,
             description=description or None,
             amount=amount,
             hours_budget=hours_budget,
+            is_extension=is_extension,
+            link=link,
             sort_order=max_order + 1
         )
         db.session.add(phase)
@@ -1090,6 +1167,8 @@ def edit_phase(phase_id):
         phase.description = request.form.get('description', '').strip() or None
         phase.amount = float(request.form.get('amount', 0) or 0)
         phase.hours_budget = float(request.form.get('hours_budget', 0) or 0)
+        phase.is_extension = request.form.get('is_extension') == 'on'
+        phase.link = request.form.get('link', '').strip() or None
         new_status = request.form.get('status')
         if new_status and new_status in Phase.STATUSES:
             phase.status = new_status

@@ -54,115 +54,134 @@
     </div>
 </div>
 
-<!-- Projects Table -->
-<div class="card">
-    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="bi bi-table me-1"></i> External Projects</h5>
-        <span class="badge bg-light text-dark">{{ projects|length }}</span>
-    </div>
-    <div class="card-body p-0">
-        {% if projects %}
-        <div class="table-responsive">
-            <table class="table table-hover mb-0" id="billingTable">
-                <thead class="table-light">
-                    <tr>
-                        <th>Project</th>
-                        <th>Client</th>
-                        <th>Phase</th>
-                        <th class="text-center">% Complete</th>
-                        <th>Halo</th>
-                        <th class="text-end">Proposal</th>
-                        <th class="text-end">Invoiced</th>
-                        <th class="text-end">Remaining</th>
-                        <th class="text-center">Recurring</th>
-                        <th class="text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for project in projects %}
-                    <tr class="billing-row {% if project.is_archived or project.is_on_hold %}opacity-75{% endif %}">
-                        <td>
-                            <a href="{{ url_for('billing_detail', project_id=project.id) }}" class="text-decoration-none fw-bold">
-                                {{ project.name }}
-                            </a>
-                            {% if project.is_archived %}
-                            <span class="badge bg-secondary ms-1">Archived</span>
-                            {% elif project.is_on_hold %}
-                            <span class="badge bg-warning text-dark ms-1">On Hold</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-muted">{{ project.billing_display or '-' }}</td>
-                        <td>
-                            {% if project.current_phase %}
-                            <span class="badge bg-info text-dark">{{ project.current_phase.name }}</span>
-                            {% else %}
-                            <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if project.tasks|length > 0 %}
-                            <div class="d-flex align-items-center justify-content-center gap-2">
-                                <div class="progress" style="width: 60px; height: 8px;">
-                                    <div class="progress-bar {% if project.task_completion_percentage == 100 %}bg-success{% elif project.task_completion_percentage >= 50 %}bg-info{% else %}bg-warning{% endif %}"
-                                         style="width: {{ project.task_completion_percentage }}%"></div>
-                                </div>
-                                <small class="text-muted">{{ project.task_completion_percentage }}%</small>
-                            </div>
-                            <small class="text-muted">{{ project.tasks_completed_count }}/{{ project.tasks|length }}</small>
-                            {% else %}
-                            <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if project.halo_link %}
-                            <a href="{{ project.halo_link }}" target="_blank" class="text-decoration-none small">
-                                <i class="bi bi-box-arrow-up-right me-1"></i>Open
-                            </a>
-                            {% else %}
-                            <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-end">${{ "{:,.2f}".format(project.proposal_amount) }}</td>
-                        <td class="text-end text-primary fw-bold">${{ "{:,.2f}".format(project.total_invoiced) }}</td>
-                        <td class="text-end fw-bold {% if project.remaining_balance < 0 %}text-danger{% elif project.remaining_balance == 0 and project.proposal_amount > 0 %}text-warning{% else %}text-success{% endif %}">
-                            ${{ "{:,.2f}".format(project.remaining_balance) }}
-                        </td>
-                        <td class="text-center">
-                            {% if project.is_recurring %}
-                            <span class="badge bg-warning text-dark">
-                                <i class="bi bi-arrow-repeat"></i> ${{ "{:,.0f}".format(project.monthly_amount) }}/mo
-                            </span>
-                            {% else %}
-                            <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            <a href="{{ url_for('billing_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-dark">
-                                <i class="bi bi-arrow-right"></i>
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<!-- Projects Grouped by Client -->
+{% if projects %}
+{% for client_name, client_projects in grouped_projects.items() %}
+<div class="card mb-4 client-group">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#client-{{ loop.index }}">
+        <h5 class="mb-0">
+            <i class="bi bi-building me-1"></i> {{ client_name }}
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-secondary">{{ client_projects|length }} project{{ 's' if client_projects|length != 1 }}</span>
+            <span class="badge bg-success">${{ "{:,.0f}".format(client_projects|sum(attribute='remaining_balance')) }} remaining</span>
+            <i class="bi bi-chevron-down"></i>
         </div>
-        {% else %}
+    </div>
+    <div class="collapse show" id="client-{{ loop.index }}">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Project</th>
+                            <th>Phase</th>
+                            <th class="text-center">% Complete</th>
+                            <th>Halo</th>
+                            <th class="text-end">Proposal</th>
+                            <th class="text-end">Invoiced</th>
+                            <th class="text-end">Remaining</th>
+                            <th class="text-center">Recurring</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for project in client_projects %}
+                        <tr class="billing-row {% if project.is_archived or project.is_on_hold %}opacity-75{% endif %}">
+                            <td>
+                                <a href="{{ url_for('billing_detail', project_id=project.id) }}" class="text-decoration-none fw-bold">
+                                    {{ project.name }}
+                                </a>
+                                {% if project.is_archived %}
+                                <span class="badge bg-secondary ms-1">Archived</span>
+                                {% elif project.is_on_hold %}
+                                <span class="badge bg-warning text-dark ms-1">On Hold</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if project.current_phase %}
+                                <span class="badge bg-info text-dark">{{ project.current_phase.name }}</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if project.tasks|length > 0 %}
+                                <div class="d-flex align-items-center justify-content-center gap-2">
+                                    <div class="progress" style="width: 60px; height: 8px;">
+                                        <div class="progress-bar {% if project.task_completion_percentage == 100 %}bg-success{% elif project.task_completion_percentage >= 50 %}bg-info{% else %}bg-warning{% endif %}"
+                                             style="width: {{ project.task_completion_percentage }}%"></div>
+                                    </div>
+                                    <small class="text-muted">{{ project.task_completion_percentage }}%</small>
+                                </div>
+                                <small class="text-muted">{{ project.tasks_completed_count }}/{{ project.tasks|length }}</small>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if project.halo_link %}
+                                <a href="{{ project.halo_link }}" target="_blank" class="text-decoration-none small">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Open
+                                </a>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">${{ "{:,.2f}".format(project.proposal_amount) }}</td>
+                            <td class="text-end text-primary fw-bold">${{ "{:,.2f}".format(project.total_invoiced) }}</td>
+                            <td class="text-end fw-bold {% if project.remaining_balance < 0 %}text-danger{% elif project.remaining_balance == 0 and project.proposal_amount > 0 %}text-warning{% else %}text-success{% endif %}">
+                                ${{ "{:,.2f}".format(project.remaining_balance) }}
+                            </td>
+                            <td class="text-center">
+                                {% if project.is_recurring %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="bi bi-arrow-repeat"></i> ${{ "{:,.0f}".format(project.monthly_amount) }}/mo
+                                </span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="{{ url_for('billing_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-dark">
+                                    <i class="bi bi-arrow-right"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="card">
+    <div class="card-body">
         <div class="empty-state">
             <i class="bi bi-receipt-cutoff"></i>
             <p>No external projects yet.</p>
         </div>
-        {% endif %}
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
     document.getElementById('billingSearch').addEventListener('input', function() {
         const query = this.value.toLowerCase();
-        document.querySelectorAll('.billing-row').forEach(function(row) {
-            const text = row.textContent.toLowerCase();
-            row.style.display = text.includes(query) ? '' : 'none';
+        document.querySelectorAll('.client-group').forEach(function(group) {
+            const header = group.querySelector('.card-header');
+            const headerMatch = header.textContent.toLowerCase().includes(query);
+            let anyRowVisible = false;
+            group.querySelectorAll('.billing-row').forEach(function(row) {
+                const match = headerMatch || row.textContent.toLowerCase().includes(query);
+                row.style.display = match ? '' : 'none';
+                if (match) anyRowVisible = true;
+            });
+            group.style.display = anyRowVisible ? '' : 'none';
         });
     });
 </script>

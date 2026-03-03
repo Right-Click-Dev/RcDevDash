@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Clients - RcDevDash{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1><i class="bi bi-building"></i> Clients</h1>
+        <p class="text-muted mb-0 small">Manage client information and contacts</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newClientModal">
+        <i class="bi bi-plus-circle me-1"></i> New Client
+    </button>
+</div>
+
+<!-- Clients Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Client</th>
+                        <th>POC</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th class="text-center">Projects</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for client in clients %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="d-flex align-items-center justify-content-center rounded-circle bg-brand-light text-brand" style="width: 32px; height: 32px; font-weight: 700; font-size: 0.8rem;">
+                                    {{ client.name[0]|upper }}
+                                </div>
+                                <span class="ms-2 fw-bold">{{ client.name }}</span>
+                            </div>
+                        </td>
+                        <td class="text-muted">{{ client.contact_name or '-' }}</td>
+                        <td>
+                            {% if client.contact_email %}
+                            <a href="mailto:{{ client.contact_email }}" class="text-decoration-none small">{{ client.contact_email }}</a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if client.contact_phone %}
+                            <a href="tel:{{ client.contact_phone }}" class="text-decoration-none small">{{ client.contact_phone }}</a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-secondary">{{ client.projects|length }}</span>
+                        </td>
+                        <td class="text-end">
+                            <div class="d-flex gap-1 justify-content-end">
+                                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editClientModal{{ client.id }}" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                {% if client.projects|length == 0 %}
+                                <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteClientModal{{ client.id }}" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not clients %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">No clients yet. Click "New Client" to add one.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer">
+        <small class="text-muted">{{ clients|length }} total client{{ 's' if clients|length != 1 }}</small>
+    </div>
+</div>
+
+<!-- New Client Modal -->
+<div class="modal fade" id="newClientModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-1"></i> New Client</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('create_client') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Client Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" placeholder="e.g. Acme Corp" required>
+                    </div>
+                    <hr>
+                    <h6 class="text-muted mb-3">Point of Contact</h6>
+                    <div class="mb-3">
+                        <label for="contact_name" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="contact_name" name="contact_name" placeholder="e.g. John Smith">
+                    </div>
+                    <div class="mb-3">
+                        <label for="contact_email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="contact_email" name="contact_email" placeholder="e.g. john@acme.com">
+                    </div>
+                    <div class="mb-3">
+                        <label for="contact_phone" class="form-label">Phone</label>
+                        <input type="tel" class="form-control" id="contact_phone" name="contact_phone" placeholder="e.g. (555) 123-4567">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Create Client</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Client Modals -->
+{% for client in clients %}
+<div class="modal fade" id="editClientModal{{ client.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit Client</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('update_client', client_id=client.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="name_{{ client.id }}" class="form-label">Client Name *</label>
+                        <input type="text" class="form-control" id="name_{{ client.id }}" name="name" value="{{ client.name }}" required>
+                    </div>
+                    <hr>
+                    <h6 class="text-muted mb-3">Point of Contact</h6>
+                    <div class="mb-3">
+                        <label for="contact_name_{{ client.id }}" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="contact_name_{{ client.id }}" name="contact_name" value="{{ client.contact_name or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="contact_email_{{ client.id }}" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="contact_email_{{ client.id }}" name="contact_email" value="{{ client.contact_email or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="contact_phone_{{ client.id }}" class="form-label">Phone</label>
+                        <input type="tel" class="form-control" id="contact_phone_{{ client.id }}" name="contact_phone" value="{{ client.contact_phone or '' }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Delete Client Modals -->
+{% for client in clients %}
+{% if client.projects|length == 0 %}
+<div class="modal fade" id="deleteClientModal{{ client.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i> Delete Client</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong>{{ client.name }}</strong>?</p>
+                <p class="text-danger mb-0"><small>This action cannot be undone.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('delete_client', client_id=client.id) }}" class="d-inline">
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i> Delete Client</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}
