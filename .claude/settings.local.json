@@ -5,7 +5,11 @@
       "Bash(git -C \"C:\\Users\\crsch\\Desktop\\Coding\\UFC-AI\\BidMock\\RcDevDash\" log --oneline -10)",
       "Bash(git -C \"C:\\Users\\crsch\\Desktop\\Coding\\UFC-AI\\BidMock\\RcDevDash\" config --local -l)",
       "Bash(python migrate_billing.py)",
-      "Bash(timeout 5 python app.py)"
+      "Bash(timeout 5 python app.py)",
+      "Bash(python -c \"from models import db, User, Project, WorkItem, Task, Lead, LeadNote, LeadTask, Invoice, Client, Phase, ProjectComment, ProjectLink, project_assignments; print\\(''Models OK''\\)\")",
+      "Bash(python -c \"from app import app; print\\(''App imports OK''\\)\")",
+      "Bash(python -c \"from proposal_parser import parse_proposal, extract_text_from_pdf; print\\(''Proposal parser imports OK''\\)\")",
+      "Bash(python -c \":*)"
     ],
     "deny": [],
     "ask": []

@@ -11,6 +11,11 @@
     </div>
     {% if current_user.is_admin %}
     <div class="d-flex gap-2">
+        <a href="{{ url_for('home', show_archived='1' if not show_archived else '0') }}"
+           class="btn btn-outline-secondary btn-sm align-self-center">
+            <i class="bi bi-{{ 'eye-slash' if show_archived else 'archive' }} me-1"></i>
+            {{ 'Hide' if show_archived else 'Show' }} Archived
+        </a>
         <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#newLeadModal">
             <i class="bi bi-lightbulb me-1"></i> New Lead
         </button>
@@ -79,7 +84,7 @@
 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 mb-4">
     {% for project in external_projects %}
     <div class="col searchable-card">
-        <div class="card h-100 project-card {% if project.is_over_budget %}border-danger{% endif %}">
+        <div class="card h-100 project-card {% if project.is_over_budget %}border-danger{% endif %} {% if project.is_archived %}opacity-75{% endif %}">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                     <h5 class="card-title mb-0">
@@ -87,10 +92,19 @@
                             {{ project.name }}
                         </a>
                     </h5>
-                    {% if project.is_over_budget %}
-                    <span class="badge bg-danger">Over Budget</span>
-                    {% endif %}
+                    <div class="d-flex gap-1">
+                        {% if project.is_archived %}
+                        <span class="badge bg-secondary">Archived</span>
+                        {% endif %}
+                        {% if project.is_over_budget %}
+                        <span class="badge bg-danger">Over Budget</span>
+                        {% endif %}
+                    </div>
                 </div>
+
+                {% if project.client %}
+                <small class="text-muted d-block mb-1"><i class="bi bi-building me-1"></i>{{ project.client.name }}</small>
+                {% endif %}
 
                 {% if project.description %}
                 <p class="card-text text-muted small mb-3">{{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}</p>
@@ -156,7 +170,7 @@
 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
     {% for project in internal_projects %}
     <div class="col searchable-card">
-        <div class="card h-100 project-card {% if project.is_over_budget %}border-danger{% endif %}">
+        <div class="card h-100 project-card {% if project.is_over_budget %}border-danger{% endif %} {% if project.is_archived %}opacity-75{% endif %}">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                     <h5 class="card-title mb-0">
@@ -164,9 +178,14 @@
                             {{ project.name }}
                         </a>
                     </h5>
-                    {% if project.is_over_budget %}
-                    <span class="badge bg-danger">Over Budget</span>
-                    {% endif %}
+                    <div class="d-flex gap-1">
+                        {% if project.is_archived %}
+                        <span class="badge bg-secondary">Archived</span>
+                        {% endif %}
+                        {% if project.is_over_budget %}
+                        <span class="badge bg-danger">Over Budget</span>
+                        {% endif %}
+                    </div>
                 </div>
 
                 {% if project.description %}
@@ -228,13 +247,13 @@
 
 <!-- New Project Modal -->
 <div class="modal fade" id="newProjectModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title"><i class="bi bi-plus-circle me-1"></i> New Project</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('create_project') }}">
+            <form method="POST" action="{{ url_for('create_project') }}" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="name" class="form-label">Project Name *</label>
@@ -242,20 +261,45 @@
                     </div>
                     <div class="mb-3">
                         <label for="description" class="form-label">Description</label>
-                        <textarea class="form-control" id="description" name="description" rows="3" placeholder="Brief project description..."></textarea>
+                        <textarea class="form-control" id="description" name="description" rows="2" placeholder="Brief project description..."></textarea>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
+                            <label for="client_id" class="form-label">Client</label>
+                            <select class="form-select" id="client_id" name="client_id" onchange="document.getElementById('newClientGroup').style.display = this.value === 'new' ? 'block' : 'none';">
+                                <option value="">-- No Client --</option>
+                                {% for c in clients %}
+                                <option value="{{ c.id }}">{{ c.name }}</option>
+                                {% endfor %}
+                                <option value="new">+ Add New Client</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3" id="newClientGroup" style="display: none;">
+                            <label for="new_client_name" class="form-label">New Client Name</label>
+                            <input type="text" class="form-control" id="new_client_name" name="new_client_name" placeholder="e.g. Acme Corp">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="start_date" class="form-label">Start Date *</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
                             <label for="hours_budget" class="form-label">Hours Budget *</label>
                             <input type="number" class="form-control" id="hours_budget" name="hours_budget" step="0.5" min="0" required>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label for="project_type" class="form-label">Type *</label>
                             <select class="form-select" id="project_type" name="project_type" required>
                                 <option value="External" selected>External (Client)</option>
                                 <option value="Internal">Internal</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="proposal_file" class="form-label">Upload Proposal (PDF)</label>
+                        <input type="file" class="form-control" id="proposal_file" name="proposal_file" accept=".pdf">
+                        <small class="text-muted">Optional. Upload a PDF proposal to auto-generate phases later.</small>
                     </div>
                 </div>
                 <div class="modal-footer">

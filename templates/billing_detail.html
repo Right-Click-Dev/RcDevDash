@@ -12,7 +12,12 @@
                 <li class="breadcrumb-item active">{{ project.name }}</li>
             </ol>
         </nav>
-        <h1>{{ project.name }}</h1>
+        <h1>
+            {{ project.name }}
+            {% if project.is_archived %}
+            <span class="badge bg-secondary fs-6 align-middle">Archived</span>
+            {% endif %}
+        </h1>
         {% if project.billing_display %}
         <p class="text-muted mb-0">{{ project.billing_display }}</p>
         {% endif %}
@@ -20,7 +25,7 @@
     <div class="d-flex gap-2">
         {% if current_user.is_admin %}
         <a href="{{ url_for('project_detail', project_id=project.id) }}" class="btn btn-primary">
-            <i class="bi bi-arrow-left-right me-1"></i> Development
+            <i class="bi bi-code-slash me-1"></i> Development
         </a>
         {% endif %}
         <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#editBillingModal">
@@ -30,7 +35,7 @@
 </div>
 
 <div class="row">
-    <!-- Left Column: Project & Billing Info -->
+    <!-- Left Column: Project Info, Financial Summary, Profitability, Links -->
     <div class="col-lg-5 mb-4">
         <!-- Billing Info Card -->
         <div class="card mb-4">
@@ -56,6 +61,13 @@
                     </div>
                 </div>
 
+                {% if project.client %}
+                <div class="mb-3">
+                    <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Client</small>
+                    <p class="mb-0 fw-bold"><i class="bi bi-building me-1"></i>{{ project.client.name }}</p>
+                </div>
+                {% endif %}
+
                 <div class="mb-3">
                     <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Halo Link</small>
                     {% if project.halo_link %}
@@ -70,15 +82,19 @@
                 </div>
 
                 <div class="row">
-                    <div class="col-6 mb-3">
+                    <div class="col-4 mb-3">
                         <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Project Type</small>
                         <p class="mb-0">
                             <span class="badge bg-{{ 'primary' if project.project_type == 'External' else 'info' }}">{{ project.project_type }}</span>
                         </p>
                     </div>
-                    <div class="col-6 mb-3">
+                    <div class="col-4 mb-3">
                         <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Hours Budget</small>
                         <p class="mb-0 fw-bold">{{ "%.1f"|format(project.hours_budget) }} hrs</p>
+                    </div>
+                    <div class="col-4 mb-3">
+                        <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Start Date</small>
+                        <p class="mb-0 fw-bold">{{ project.start_date|dateformat('%b %d, %Y') if project.start_date else 'Not set' }}</p>
                     </div>
                 </div>
 
@@ -88,11 +104,22 @@
                     <p class="mb-0" style="white-space: pre-wrap;">{{ project.project_notes }}</p>
                 </div>
                 {% endif %}
+
+                {% if project.proposal_file_path %}
+                <div class="mt-3 pt-3 border-top">
+                    <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Proposal</small>
+                    <p class="mb-0">
+                        <a href="{{ url_for('download_proposal', project_id=project.id) }}" class="text-decoration-none">
+                            <i class="bi bi-file-earmark-pdf me-1"></i>Download Proposal
+                        </a>
+                    </p>
+                </div>
+                {% endif %}
             </div>
         </div>
 
         <!-- Financial Summary Card -->
-        <div class="card">
+        <div class="card mb-4">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0"><i class="bi bi-currency-dollar me-1"></i> Financial Summary</h5>
             </div>
@@ -101,6 +128,12 @@
                     <span class="text-muted">Proposal Amount:</span>
                     <span class="fw-bold fs-5">${{ "{:,.2f}".format(project.proposal_amount) }}</span>
                 </div>
+                {% if project.total_phase_amount > 0 %}
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Total Phase Value:</span>
+                    <span class="fw-bold">${{ "{:,.2f}".format(project.total_phase_amount) }}</span>
+                </div>
+                {% endif %}
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Total Invoiced:</span>
                     <span class="fw-bold fs-5 text-primary">${{ "{:,.2f}".format(project.total_invoiced) }}</span>
@@ -138,11 +171,269 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Profitability Calculator Card -->
+        {% if project.hourly_cost_rate > 0 %}
+        <div class="card mb-4">
+            <div class="card-header text-white" style="background-color: var(--clr-info, #06b6d4);">
+                <h5 class="mb-0"><i class="bi bi-calculator me-1"></i> Profitability</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Hours Used:</span>
+                    <span class="fw-bold">{{ "%.1f"|format(project.hours_used) }} hrs</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Cost Rate:</span>
+                    <span class="fw-bold">${{ "{:,.2f}".format(project.hourly_cost_rate) }} / hr</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Dev Cost:</span>
+                    <span class="fw-bold text-danger">${{ "{:,.2f}".format(project.dev_cost) }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Revenue:</span>
+                    <span class="fw-bold">${{ "{:,.2f}".format(project.proposal_amount) }}</span>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="fw-bold">Profit:</span>
+                    <span class="fw-bold fs-5 {% if project.profit < 0 %}text-danger{% else %}text-success{% endif %}">
+                        ${{ "{:,.2f}".format(project.profit) }}
+                    </span>
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="fw-bold">Margin:</span>
+                    <span class="fw-bold fs-5 {% if project.profit_margin < 0 %}text-danger{% elif project.profit_margin < 20 %}text-warning{% else %}text-success{% endif %}">
+                        {{ "%.1f"|format(project.profit_margin) }}%
+                    </span>
+                </div>
+                {% if project.proposal_amount > 0 %}
+                <div class="progress" style="height: 22px;">
+                    {% set cost_pct = ((project.dev_cost / project.proposal_amount) * 100) | int %}
+                    {% set cost_pct_capped = [cost_pct, 100] | min %}
+                    <div class="progress-bar {% if cost_pct > 80 %}bg-danger{% elif cost_pct > 60 %}bg-warning{% else %}bg-info{% endif %}"
+                         role="progressbar" style="width: {{ cost_pct_capped }}%">
+                        {{ cost_pct }}% cost
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="card mb-4">
+            <div class="card-header text-white" style="background-color: var(--clr-info, #06b6d4);">
+                <h5 class="mb-0"><i class="bi bi-calculator me-1"></i> Profitability</h5>
+            </div>
+            <div class="card-body text-center text-muted py-4">
+                <i class="bi bi-calculator fs-3 d-block mb-2"></i>
+                <p class="mb-0">Set an hourly cost rate in "Edit Info" to see profitability analysis.</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Project Links Card -->
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-link-45deg me-1"></i> Links</h5>
+                <button class="btn btn-sm btn-light" data-bs-toggle="collapse" data-bs-target="#addLinkForm">
+                    <i class="bi bi-plus me-1"></i> Add Link
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- Add Link Form -->
+                <div class="collapse mb-3" id="addLinkForm">
+                    <div class="p-3 bg-light rounded">
+                        <form method="POST" action="{{ url_for('add_link') }}">
+                            <input type="hidden" name="project_id" value="{{ project.id }}">
+                            <div class="mb-2">
+                                <label for="link_title" class="form-label small">Title *</label>
+                                <input type="text" class="form-control form-control-sm" id="link_title" name="title" placeholder="e.g., Contract PDF" required>
+                            </div>
+                            <div class="mb-2">
+                                <label for="link_url" class="form-label small">URL *</label>
+                                <input type="url" class="form-control form-control-sm" id="link_url" name="url" placeholder="https://..." required>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="bi bi-plus me-1"></i> Add Link
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                {% if project_links %}
+                <div class="list-group list-group-flush">
+                    {% for link in project_links %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <a href="{{ link.url }}" target="_blank" class="text-decoration-none">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>{{ link.title }}
+                        </a>
+                        <form method="POST" action="{{ url_for('delete_link', link_id=link.id) }}" class="d-inline"
+                              onsubmit="return confirm('Delete this link?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-x"></i></button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center text-muted small py-2">
+                    <i class="bi bi-link me-1"></i> No links yet.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Proposal Upload -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-text me-1"></i> Proposal</h5>
+            </div>
+            <div class="card-body">
+                {% if project.proposal_file_path %}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <a href="{{ url_for('download_proposal', project_id=project.id) }}" class="text-decoration-none">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>Download Current Proposal
+                    </a>
+                    <form method="POST" action="{{ url_for('process_proposal', project_id=project.id) }}" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-warning"
+                                onclick="return confirm('This will use AI to extract phases from the proposal. Continue?');">
+                            <i class="bi bi-magic me-1"></i> Generate Phases
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+                <form method="POST" action="{{ url_for('upload_proposal', project_id=project.id) }}" enctype="multipart/form-data">
+                    <div class="input-group input-group-sm">
+                        <input type="file" class="form-control" name="proposal_file" accept=".pdf">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-upload me-1"></i> Upload
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
-    <!-- Right Column: Invoices -->
+    <!-- Right Column: Phases, Invoices, Comments -->
     <div class="col-lg-7 mb-4">
-        <div class="card h-100">
+        <!-- Phases Card -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-signpost-split me-1"></i> Phases</h5>
+                <button class="btn btn-sm btn-light" data-bs-toggle="collapse" data-bs-target="#addPhaseForm">
+                    <i class="bi bi-plus me-1"></i> Add Phase
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- Add Phase Form -->
+                <div class="collapse mb-4" id="addPhaseForm">
+                    <div class="p-3 bg-light rounded">
+                        <form method="POST" action="{{ url_for('add_phase') }}">
+                            <input type="hidden" name="project_id" value="{{ project.id }}">
+                            <h6 class="mb-3"><i class="bi bi-plus-circle me-1"></i> New Phase</h6>
+                            <div class="mb-2">
+                                <label for="phase_name" class="form-label small">Phase Name *</label>
+                                <input type="text" class="form-control form-control-sm" id="phase_name" name="name" placeholder="e.g., Discovery & Planning" required>
+                            </div>
+                            <div class="mb-2">
+                                <label for="phase_desc" class="form-label small">Description</label>
+                                <input type="text" class="form-control form-control-sm" id="phase_desc" name="description" placeholder="Optional">
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <label for="phase_amount" class="form-label small">Amount ($)</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" class="form-control" id="phase_amount" name="amount" step="0.01" min="0" value="0">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <label for="phase_hours" class="form-label small">Hours Budget</label>
+                                    <input type="number" class="form-control form-control-sm" id="phase_hours" name="hours_budget" step="0.5" min="0" value="0">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-info btn-sm mt-1 text-white">
+                                <i class="bi bi-plus me-1"></i> Add Phase
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Phases List -->
+                {% if phases %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Phase</th>
+                                <th class="text-end">Amount</th>
+                                <th class="text-end">Hours</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-end" style="width: 130px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for phase in phases %}
+                            <tr>
+                                <td>
+                                    <span class="fw-bold">{{ phase.name }}</span>
+                                    {% if phase.description %}
+                                    <br><small class="text-muted">{{ phase.description[:60] }}</small>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end fw-bold">${{ "{:,.2f}".format(phase.amount) }}</td>
+                                <td class="text-end">{{ "%.1f"|format(phase.hours_budget) }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-{{ 'secondary' if phase.status == 'not_started' else 'primary' if phase.status == 'in_progress' else 'success' if phase.status == 'completed' else 'warning text-dark' }}">
+                                        {{ phase.status_display }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        {% if phase.next_status %}
+                                        <form method="POST" action="{{ url_for('update_phase_status', phase_id=phase.id) }}" class="d-inline">
+                                            <input type="hidden" name="status" value="{{ phase.next_status }}">
+                                            <button type="submit" class="btn btn-outline-success btn-sm" title="Advance to {{ phase.next_status.replace('_',' ').title() }}">
+                                                <i class="bi bi-arrow-right"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                        <button type="button" class="btn btn-outline-primary btn-sm"
+                                                data-bs-toggle="modal" data-bs-target="#editPhaseModal{{ phase.id }}" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form method="POST" action="{{ url_for('delete_phase', phase_id=phase.id) }}" class="d-inline"
+                                              onsubmit="return confirm('Delete this phase?');">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td class="fw-bold">Total</td>
+                                <td class="text-end fw-bold">${{ "{:,.2f}".format(project.total_phase_amount) }}</td>
+                                <td class="text-end fw-bold">{{ "%.1f"|format(phases|sum(attribute='hours_budget')) }}</td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-signpost-split"></i>
+                    <p class="mb-0">No phases yet. Click "Add Phase" to create one.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Invoices Card -->
+        <div class="card mb-4">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-journal-text me-1"></i> Invoices</h5>
                 <button class="btn btn-sm btn-light" data-bs-toggle="collapse" data-bs-target="#addInvoiceForm">
@@ -242,6 +533,55 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Notes & Comments Card -->
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-chat-dots me-1"></i> Notes & Comments</h5>
+                <span class="badge bg-light text-dark">{{ comments|length }}</span>
+            </div>
+            <div class="card-body">
+                <!-- Add Comment Form -->
+                <div class="mb-3">
+                    <form method="POST" action="{{ url_for('add_comment') }}">
+                        <input type="hidden" name="project_id" value="{{ project.id }}">
+                        <input type="hidden" name="page_type" value="billing">
+                        <div class="input-group">
+                            <textarea class="form-control form-control-sm" name="comment" rows="2" placeholder="Add a billing note or comment..." required></textarea>
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="bi bi-send me-1"></i> Post
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                {% if comments %}
+                <div class="comments-list" style="max-height: 300px; overflow-y: auto;">
+                    {% for c in comments %}
+                    <div class="border-bottom pb-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="fw-bold small">{{ c.user.username }}</span>
+                                <span class="text-muted small ms-2">{{ c.created_at|datetimeformat('%b %d, %Y %H:%M') }}</span>
+                            </div>
+                            {% if current_user.is_admin or c.user_id == current_user.id %}
+                            <form method="POST" action="{{ url_for('delete_comment', comment_id=c.id) }}" class="d-inline"
+                                  onsubmit="return confirm('Delete this comment?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-x"></i></button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        <p class="mb-0 mt-1" style="white-space: pre-wrap;">{{ c.comment }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center text-muted small py-2">
+                    <i class="bi bi-chat me-1"></i> No comments yet.
+                </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
 </div>
 
@@ -273,7 +613,7 @@
                                value="{{ project.halo_link or '' }}" placeholder="https://...">
                     </div>
                     <div class="row">
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label for="edit_proposal_amount" class="form-label">Proposal Amount</label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
@@ -281,7 +621,15 @@
                                        step="0.01" min="0" value="{{ project.proposal_amount }}">
                             </div>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
+                            <label for="edit_hourly_cost_rate" class="form-label">Hourly Cost Rate</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="edit_hourly_cost_rate" name="hourly_cost_rate"
+                                       step="0.01" min="0" value="{{ project.hourly_cost_rate }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
                             <label class="form-label">Recurring Monthly?</label>
                             <div class="form-check form-switch mt-2">
                                 <input class="form-check-input" type="checkbox" id="edit_is_recurring" name="is_recurring"
@@ -290,7 +638,7 @@
                                 <label class="form-check-label" for="edit_is_recurring">Yes</label>
                             </div>
                         </div>
-                        <div class="col-md-4 mb-3" id="monthlyAmountGroup" style="display: {% if project.is_recurring %}block{% else %}none{% endif %};">
+                        <div class="col-md-3 mb-3" id="monthlyAmountGroup" style="display: {% if project.is_recurring %}block{% else %}none{% endif %};">
                             <label for="edit_monthly_amount" class="form-label">Monthly Amount</label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
@@ -354,6 +702,53 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Edit Phase Modals -->
+{% for phase in phases %}
+<div class="modal fade" id="editPhaseModal{{ phase.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit Phase</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('edit_phase', phase_id=phase.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_phase_name{{ phase.id }}" class="form-label">Phase Name *</label>
+                        <input type="text" class="form-control" id="edit_phase_name{{ phase.id }}"
+                               name="name" value="{{ phase.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_phase_desc{{ phase.id }}" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="edit_phase_desc{{ phase.id }}"
+                               name="description" value="{{ phase.description or '' }}">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_phase_amount{{ phase.id }}" class="form-label">Amount ($)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="edit_phase_amount{{ phase.id }}"
+                                       name="amount" step="0.01" min="0" value="{{ phase.amount }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_phase_hours{{ phase.id }}" class="form-label">Hours Budget</label>
+                            <input type="number" class="form-control" id="edit_phase_hours{{ phase.id }}"
+                                   name="hours_budget" step="0.5" min="0" value="{{ phase.hours_budget }}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info text-white"><i class="bi bi-save me-1"></i> Save</button>
                 </div>
             </form>
         </div>

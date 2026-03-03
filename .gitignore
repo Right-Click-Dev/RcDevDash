@@ -66,3 +66,6 @@ htmlcov/
 
 # PDF Reports (optional - uncomment if you don't want to track generated reports)
 # *.pdf
+
+# Uploaded files
+uploads/

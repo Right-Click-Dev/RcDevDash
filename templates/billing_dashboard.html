@@ -9,6 +9,13 @@
         <h1><i class="bi bi-receipt"></i> Billing Dashboard</h1>
         <p class="text-muted mb-0 small">Financial overview of external projects</p>
     </div>
+    <div>
+        <a href="{{ url_for('billing_dashboard', show_archived='1' if not show_archived else '0') }}"
+           class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-{{ 'eye-slash' if show_archived else 'archive' }} me-1"></i>
+            {{ 'Hide' if show_archived else 'Show' }} Archived
+        </a>
+    </div>
 </div>
 
 <!-- Search Bar -->
@@ -71,11 +78,14 @@
                 </thead>
                 <tbody>
                     {% for project in projects %}
-                    <tr class="billing-row">
+                    <tr class="billing-row {% if project.is_archived %}opacity-75{% endif %}">
                         <td>
                             <a href="{{ url_for('billing_detail', project_id=project.id) }}" class="text-decoration-none fw-bold">
                                 {{ project.name }}
                             </a>
+                            {% if project.is_archived %}
+                            <span class="badge bg-secondary ms-1">Archived</span>
+                            {% endif %}
                         </td>
                         <td class="text-muted">{{ project.billing_display or '-' }}</td>
                         <td>

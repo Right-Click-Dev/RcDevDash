@@ -1,15 +1,27 @@
+import os
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, abort
 from flask_login import LoginManager, login_required, current_user
 from datetime import datetime, date
 from config import Config
-from models import db, User, Project, WorkItem, Task, Lead, LeadNote, LeadTask, Invoice, project_assignments
+from models import (db, User, Project, WorkItem, Task, Lead, LeadNote, LeadTask, Invoice,
+                    Client, Phase, ProjectComment, ProjectLink, project_assignments)
 from auth import auth_bp
 from reports import generate_project_report
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# File upload configuration
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
+ALLOWED_EXTENSIONS = {'pdf'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Initialize extensions
 db.init_app(app)
@@ -70,18 +82,27 @@ def home():
     if not current_user.can_access_dev:
         return redirect(url_for('billing_dashboard'))
 
+    show_archived = request.args.get('show_archived', '0') == '1'
+    clients = Client.query.order_by(Client.name).all()
+
     # Developers only see projects they're assigned to
     if current_user.role == User.ROLE_DEVELOPER:
         assigned = current_user.assigned_projects
+        if not show_archived:
+            assigned = [p for p in assigned if p.status != 'archived']
         external_projects = [p for p in assigned if p.project_type == 'External']
         internal_projects = [p for p in assigned if p.project_type == 'Internal']
         leads = []  # Developers don't manage leads
     else:
-        external_projects = Project.query.filter_by(project_type='External').order_by(Project.updated_at.desc()).all()
-        internal_projects = Project.query.filter_by(project_type='Internal').order_by(Project.updated_at.desc()).all()
+        base_query = Project.query
+        if not show_archived:
+            base_query = base_query.filter(Project.status != 'archived')
+        external_projects = base_query.filter_by(project_type='External').order_by(Project.updated_at.desc()).all()
+        internal_projects = base_query.filter_by(project_type='Internal').order_by(Project.updated_at.desc()).all()
         leads = Lead.query.order_by(Lead.updated_at.desc()).all()
 
-    return render_template('home.html', external_projects=external_projects, internal_projects=internal_projects, leads=leads)
+    return render_template('home.html', external_projects=external_projects, internal_projects=internal_projects,
+                           leads=leads, clients=clients, show_archived=show_archived)
 
 
 @app.route('/project/<int:project_id>')
@@ -97,7 +118,10 @@ def project_detail(project_id):
     work_items = WorkItem.query.filter_by(project_id=project_id).order_by(WorkItem.work_date.desc()).all()
     tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.deadline).all()
     developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN])).order_by(User.username).all()
-    return render_template('project_detail.html', project=project, work_items=work_items, tasks=tasks, developers=developers, now=datetime.now())
+    dev_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='dev').order_by(ProjectComment.created_at.desc()).all()
+    phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
+    return render_template('project_detail.html', project=project, work_items=work_items, tasks=tasks,
+                           developers=developers, comments=dev_comments, phases=phases, now=datetime.now())
 
 
 @app.route('/api/project/create', methods=['POST'])
@@ -115,10 +139,30 @@ def create_project():
         proposal_amount = float(request.form.get('proposal_amount', 0) or 0)
         is_recurring = request.form.get('is_recurring') == 'on'
         monthly_amount = float(request.form.get('monthly_amount', 0) or 0)
+        start_date_str = request.form.get('start_date')
+        client_id = request.form.get('client_id')
+        new_client_name = request.form.get('new_client_name', '').strip()
 
         if not name:
             flash('Project name is required.', 'error')
             return redirect(url_for('home'))
+
+        # Handle client selection or creation
+        resolved_client_id = None
+        if new_client_name:
+            existing = Client.query.filter_by(name=new_client_name).first()
+            if existing:
+                resolved_client_id = existing.id
+            else:
+                new_client = Client(name=new_client_name)
+                db.session.add(new_client)
+                db.session.flush()
+                resolved_client_id = new_client.id
+        elif client_id and client_id != 'new' and client_id != '':
+            resolved_client_id = int(client_id)
+
+        # Parse start date
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
 
         project = Project(
             name=name,
@@ -130,10 +174,24 @@ def create_project():
             billing_for=billing_for or None,
             proposal_amount=proposal_amount,
             is_recurring=is_recurring,
-            monthly_amount=monthly_amount
+            monthly_amount=monthly_amount,
+            client_id=resolved_client_id,
+            start_date=start_date,
+            status='active'
         )
         db.session.add(project)
         db.session.commit()
+
+        # Handle proposal file upload
+        if 'proposal_file' in request.files:
+            file = request.files['proposal_file']
+            if file and file.filename and allowed_file(file.filename):
+                from werkzeug.utils import secure_filename
+                filename = secure_filename(f"project_{project.id}_{file.filename}")
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                project.proposal_file_path = filename
+                db.session.commit()
 
         flash(f'Project "{name}" created successfully!', 'success')
         return redirect(url_for('project_detail', project_id=project.id))
@@ -440,7 +498,9 @@ def dev_project_view(project_id):
     project = Project.query.get_or_404(project_id)
     my_tasks = Task.query.filter_by(project_id=project_id, assigned_to_id=current_user.id).order_by(Task.completed, Task.deadline).all()
     my_work_items = WorkItem.query.filter_by(project_id=project_id, created_by_id=current_user.id).order_by(WorkItem.work_date.desc()).all()
-    return render_template('dev_project_view.html', project=project, tasks=my_tasks, work_items=my_work_items, now=datetime.now())
+    dev_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='dev').order_by(ProjectComment.created_at.desc()).all()
+    return render_template('dev_project_view.html', project=project, tasks=my_tasks, work_items=my_work_items,
+                           comments=dev_comments, now=datetime.now())
 
 
 @app.route('/report/<int:project_id>')
@@ -464,8 +524,13 @@ def generate_report(project_id):
 @billing_required
 def billing_dashboard():
     """Billing dashboard - display external projects with financial info"""
-    projects = Project.query.filter_by(project_type='External').order_by(Project.updated_at.desc()).all()
-    return render_template('billing_dashboard.html', projects=projects)
+    show_archived = request.args.get('show_archived', '0') == '1'
+    base_query = Project.query.filter_by(project_type='External')
+    if not show_archived:
+        base_query = base_query.filter(Project.status != 'archived')
+    projects = base_query.order_by(Project.updated_at.desc()).all()
+    clients = Client.query.order_by(Client.name).all()
+    return render_template('billing_dashboard.html', projects=projects, clients=clients, show_archived=show_archived)
 
 
 @app.route('/billing/<int:project_id>')
@@ -474,7 +539,11 @@ def billing_detail(project_id):
     """Billing detail page for a project"""
     project = Project.query.get_or_404(project_id)
     invoices = Invoice.query.filter_by(project_id=project_id).order_by(Invoice.invoice_date.desc()).all()
-    return render_template('billing_detail.html', project=project, invoices=invoices, now=datetime.now())
+    billing_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='billing').order_by(ProjectComment.created_at.desc()).all()
+    phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
+    project_links = ProjectLink.query.filter_by(project_id=project_id).order_by(ProjectLink.created_at.desc()).all()
+    return render_template('billing_detail.html', project=project, invoices=invoices, comments=billing_comments,
+                           phases=phases, project_links=project_links, now=datetime.now())
 
 
 @app.route('/api/project/<int:project_id>/update-info', methods=['POST'])
@@ -491,6 +560,7 @@ def update_project_info(project_id):
         project.is_recurring = request.form.get('is_recurring') == 'on'
         project.monthly_amount = float(request.form.get('monthly_amount', 0) or 0)
         project.project_notes = request.form.get('project_notes', '').strip() or None
+        project.hourly_cost_rate = float(request.form.get('hourly_cost_rate', 0) or 0)
 
         db.session.commit()
         flash('Project info updated successfully!', 'success')
@@ -578,6 +648,404 @@ def delete_invoice(invoice_id):
         db.session.rollback()
         flash(f'Error deleting invoice: {str(e)}', 'error')
         return redirect(url_for('billing_detail', project_id=project_id))
+
+
+# =============================================================================
+# ARCHIVE ROUTES
+# =============================================================================
+
+@app.route('/api/project/<int:project_id>/archive', methods=['POST'])
+@admin_required
+def archive_project(project_id):
+    """Archive a project"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        project.status = 'archived'
+        project.archived_at = datetime.utcnow()
+        db.session.commit()
+        flash(f'Project "{project.name}" has been archived.', 'success')
+        return redirect(url_for('home'))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error archiving project: {str(e)}', 'error')
+        return redirect(url_for('project_detail', project_id=project_id))
+
+
+@app.route('/api/project/<int:project_id>/unarchive', methods=['POST'])
+@admin_required
+def unarchive_project(project_id):
+    """Unarchive a project"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        project.status = 'active'
+        project.archived_at = None
+        db.session.commit()
+        flash(f'Project "{project.name}" has been restored.', 'success')
+        return redirect(url_for('project_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error restoring project: {str(e)}', 'error')
+        return redirect(url_for('project_detail', project_id=project_id))
+
+
+# =============================================================================
+# CLIENT ROUTES
+# =============================================================================
+
+@app.route('/api/client/create', methods=['POST'])
+@login_required
+def create_client():
+    """Create a new client"""
+    try:
+        name = request.form.get('name', '').strip()
+        if not name:
+            flash('Client name is required.', 'error')
+            return redirect(request.referrer or url_for('home'))
+
+        existing = Client.query.filter_by(name=name).first()
+        if existing:
+            flash(f'Client "{name}" already exists.', 'error')
+            return redirect(request.referrer or url_for('home'))
+
+        client = Client(name=name)
+        db.session.add(client)
+        db.session.commit()
+        flash(f'Client "{name}" created successfully!', 'success')
+        return redirect(request.referrer or url_for('home'))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error creating client: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('home'))
+
+
+# =============================================================================
+# COMMENT ROUTES
+# =============================================================================
+
+@app.route('/api/comment/add', methods=['POST'])
+@login_required
+def add_comment():
+    """Add a comment to a project"""
+    try:
+        project_id = int(request.form.get('project_id'))
+        comment_text = request.form.get('comment', '').strip()
+        page_type = request.form.get('page_type', 'dev')
+
+        if not comment_text:
+            flash('Comment cannot be empty.', 'error')
+            if page_type == 'billing':
+                return redirect(url_for('billing_detail', project_id=project_id))
+            return redirect(url_for('project_detail', project_id=project_id))
+
+        comment = ProjectComment(
+            project_id=project_id,
+            user_id=current_user.id,
+            comment=comment_text,
+            page_type=page_type
+        )
+        db.session.add(comment)
+        db.session.commit()
+        flash('Comment added!', 'success')
+
+        # Redirect back to the page they came from
+        if request.referrer:
+            return redirect(request.referrer)
+        if page_type == 'billing':
+            return redirect(url_for('billing_detail', project_id=project_id))
+        return redirect(url_for('project_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error adding comment: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('home'))
+
+
+@app.route('/api/comment/<int:comment_id>/delete', methods=['POST'])
+@login_required
+def delete_comment(comment_id):
+    """Delete a comment (admin or author only)"""
+    try:
+        comment = ProjectComment.query.get_or_404(comment_id)
+        project_id = comment.project_id
+        page_type = comment.page_type
+
+        if not current_user.is_admin and comment.user_id != current_user.id:
+            abort(403)
+
+        db.session.delete(comment)
+        db.session.commit()
+        flash('Comment deleted.', 'success')
+
+        if request.referrer:
+            return redirect(request.referrer)
+        if page_type == 'billing':
+            return redirect(url_for('billing_detail', project_id=project_id))
+        return redirect(url_for('project_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting comment: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('home'))
+
+
+# =============================================================================
+# PHASE ROUTES
+# =============================================================================
+
+@app.route('/api/phase/add', methods=['POST'])
+@billing_required
+def add_phase():
+    """Add a phase to a project"""
+    try:
+        project_id = int(request.form.get('project_id'))
+        name = request.form.get('name', '').strip()
+        description = request.form.get('description', '').strip()
+        amount = float(request.form.get('amount', 0) or 0)
+        hours_budget = float(request.form.get('hours_budget', 0) or 0)
+
+        if not name:
+            flash('Phase name is required.', 'error')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        # Get next sort order
+        max_order = db.session.query(db.func.max(Phase.sort_order)).filter_by(project_id=project_id).scalar() or 0
+
+        phase = Phase(
+            project_id=project_id,
+            name=name,
+            description=description or None,
+            amount=amount,
+            hours_budget=hours_budget,
+            sort_order=max_order + 1
+        )
+        db.session.add(phase)
+        db.session.commit()
+        flash(f'Phase "{name}" added!', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error adding phase: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/api/phase/<int:phase_id>/edit', methods=['POST'])
+@billing_required
+def edit_phase(phase_id):
+    """Edit a phase"""
+    try:
+        phase = Phase.query.get_or_404(phase_id)
+        project_id = phase.project_id
+
+        phase.name = request.form.get('name', '').strip() or phase.name
+        phase.description = request.form.get('description', '').strip() or None
+        phase.amount = float(request.form.get('amount', 0) or 0)
+        phase.hours_budget = float(request.form.get('hours_budget', 0) or 0)
+
+        db.session.commit()
+        flash('Phase updated!', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating phase: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=phase.project_id))
+
+
+@app.route('/api/phase/<int:phase_id>/delete', methods=['POST'])
+@billing_required
+def delete_phase(phase_id):
+    """Delete a phase"""
+    try:
+        phase = Phase.query.get_or_404(phase_id)
+        project_id = phase.project_id
+        db.session.delete(phase)
+        db.session.commit()
+        flash('Phase deleted.', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting phase: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=phase.project_id))
+
+
+@app.route('/api/phase/<int:phase_id>/update-status', methods=['POST'])
+@billing_required
+def update_phase_status(phase_id):
+    """Advance phase to next status"""
+    try:
+        phase = Phase.query.get_or_404(phase_id)
+        project_id = phase.project_id
+        new_status = request.form.get('status')
+
+        if new_status and new_status in Phase.STATUSES:
+            phase.status = new_status
+            db.session.commit()
+            flash(f'Phase "{phase.name}" status updated to {phase.status_display}.', 'success')
+        else:
+            flash('Invalid status.', 'error')
+
+        return redirect(url_for('billing_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating phase status: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=phase.project_id))
+
+
+# =============================================================================
+# PROJECT LINK ROUTES
+# =============================================================================
+
+@app.route('/api/link/add', methods=['POST'])
+@billing_required
+def add_link():
+    """Add a link to a project"""
+    try:
+        project_id = int(request.form.get('project_id'))
+        title = request.form.get('title', '').strip()
+        url = request.form.get('url', '').strip()
+
+        if not title or not url:
+            flash('Link title and URL are required.', 'error')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        link = ProjectLink(project_id=project_id, title=title, url=url)
+        db.session.add(link)
+        db.session.commit()
+        flash('Link added!', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error adding link: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/api/link/<int:link_id>/delete', methods=['POST'])
+@billing_required
+def delete_link(link_id):
+    """Delete a project link"""
+    try:
+        link = ProjectLink.query.get_or_404(link_id)
+        project_id = link.project_id
+        db.session.delete(link)
+        db.session.commit()
+        flash('Link deleted.', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting link: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=link.project_id))
+
+
+# =============================================================================
+# PROPOSAL UPLOAD & AI PROCESSING
+# =============================================================================
+
+@app.route('/api/project/<int:project_id>/upload-proposal', methods=['POST'])
+@billing_required
+def upload_proposal(project_id):
+    """Upload a proposal PDF to a project"""
+    try:
+        project = Project.query.get_or_404(project_id)
+
+        if 'proposal_file' not in request.files:
+            flash('No file selected.', 'error')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        file = request.files['proposal_file']
+        if not file or not file.filename:
+            flash('No file selected.', 'error')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        if not allowed_file(file.filename):
+            flash('Only PDF files are allowed.', 'error')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        from werkzeug.utils import secure_filename
+        filename = secure_filename(f"project_{project.id}_{file.filename}")
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        project.proposal_file_path = filename
+        db.session.commit()
+
+        flash('Proposal uploaded successfully!', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error uploading proposal: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/api/project/<int:project_id>/process-proposal', methods=['POST'])
+@billing_required
+def process_proposal(project_id):
+    """Process uploaded proposal with AI to extract phases"""
+    try:
+        project = Project.query.get_or_404(project_id)
+
+        if not project.proposal_file_path:
+            flash('No proposal file uploaded yet.', 'error')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], project.proposal_file_path)
+        if not os.path.exists(filepath):
+            flash('Proposal file not found.', 'error')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        from proposal_parser import parse_proposal
+        result = parse_proposal(filepath)
+
+        if not result or not result.get('phases'):
+            flash('Could not extract phases from proposal. Try adding them manually.', 'warning')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        # Create phases from AI result
+        max_order = db.session.query(db.func.max(Phase.sort_order)).filter_by(project_id=project_id).scalar() or 0
+        phases_created = 0
+
+        for i, phase_data in enumerate(result['phases']):
+            phase = Phase(
+                project_id=project_id,
+                name=phase_data.get('name', f'Phase {i+1}'),
+                description=phase_data.get('description'),
+                amount=float(phase_data.get('amount', 0)),
+                hours_budget=float(phase_data.get('hours', 0)),
+                sort_order=max_order + i + 1
+            )
+            db.session.add(phase)
+            phases_created += 1
+
+        # Update project billing info if extracted
+        if result.get('proposal_amount') and not project.proposal_amount:
+            project.proposal_amount = float(result['proposal_amount'])
+        if result.get('billing_client') and not project.billing_client:
+            project.billing_client = result['billing_client']
+
+        db.session.commit()
+        flash(f'Successfully extracted {phases_created} phase(s) from proposal!', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error processing proposal: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/download/proposal/<int:project_id>')
+@login_required
+def download_proposal(project_id):
+    """Download the proposal file for a project"""
+    project = Project.query.get_or_404(project_id)
+    if not project.proposal_file_path:
+        flash('No proposal file available.', 'error')
+        return redirect(request.referrer or url_for('home'))
+
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], project.proposal_file_path)
+    if not os.path.exists(filepath):
+        flash('Proposal file not found.', 'error')
+        return redirect(request.referrer or url_for('home'))
+
+    return send_file(filepath, as_attachment=True, download_name=project.proposal_file_path)
 
 
 # =============================================================================

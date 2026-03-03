@@ -787,3 +787,27 @@ small, .small { font-size: 0.8125rem; }
     background: rgba(255,255,255,0.2);
     color: #fff;
 }
+
+/* =============================================================================
+   Comments
+   ============================================================================= */
+.comments-list .border-bottom:last-child { border-bottom: none !important; }
+
+/* =============================================================================
+   Opacity utility for archived items
+   ============================================================================= */
+.opacity-75 { opacity: 0.75; }
+
+/* =============================================================================
+   List group flush in dark mode
+   ============================================================================= */
+[data-theme="dark"] .list-group-item {
+    background-color: transparent;
+    border-color: var(--clr-border);
+    color: var(--clr-text);
+}
+
+/* Profitability card in dark mode */
+[data-theme="dark"] .card-header[style*="background-color"] {
+    border-bottom-color: var(--clr-border);
+}

@@ -55,6 +55,21 @@ class User(UserMixin, db.Model):
         return f'<User {self.username}>'
 
 
+class Client(db.Model):
+    """Client model for grouping projects"""
+    __tablename__ = 'clients'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    projects = db.relationship('Project', backref='client', lazy=True)
+
+    def __repr__(self):
+        return f'<Client {self.name}>'
+
+
 class Project(db.Model):
     """Project model"""
     __tablename__ = 'projects'
@@ -71,6 +86,12 @@ class Project(db.Model):
     is_recurring = db.Column(db.Boolean, default=False)
     monthly_amount = db.Column(db.Float, default=0.0)
     project_notes = db.Column(db.Text)
+    client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=True)
+    start_date = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(20), default='active')  # active, archived
+    archived_at = db.Column(db.DateTime, nullable=True)
+    hourly_cost_rate = db.Column(db.Float, default=0.0)
+    proposal_file_path = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -78,6 +99,9 @@ class Project(db.Model):
     work_items = db.relationship('WorkItem', backref='project', lazy=True, cascade='all, delete-orphan')
     tasks = db.relationship('Task', backref='project', lazy=True, cascade='all, delete-orphan')
     invoices = db.relationship('Invoice', backref='project', lazy=True, cascade='all, delete-orphan')
+    phases = db.relationship('Phase', backref='project', lazy=True, cascade='all, delete-orphan', order_by='Phase.sort_order')
+    comments = db.relationship('ProjectComment', backref='project', lazy=True, cascade='all, delete-orphan')
+    links = db.relationship('ProjectLink', backref='project', lazy=True, cascade='all, delete-orphan')
 
     @property
     def hours_used(self):
@@ -118,6 +142,33 @@ class Project(db.Model):
         if self.billing_client and self.billing_for:
             return f"{self.billing_client} for {self.billing_for}"
         return self.billing_client or self.billing_for or ''
+
+    @property
+    def total_phase_amount(self):
+        """Calculate total amount across all phases"""
+        return sum(p.amount for p in self.phases)
+
+    @property
+    def is_archived(self):
+        """Check if project is archived"""
+        return self.status == 'archived'
+
+    @property
+    def dev_cost(self):
+        """Calculate development cost based on hours and cost rate"""
+        return self.hours_used * self.hourly_cost_rate
+
+    @property
+    def profit(self):
+        """Calculate profit (revenue - dev cost)"""
+        return self.proposal_amount - self.dev_cost
+
+    @property
+    def profit_margin(self):
+        """Calculate profit margin percentage"""
+        if self.proposal_amount == 0:
+            return 0
+        return (self.profit / self.proposal_amount) * 100
 
     def tasks_for_user(self, user_id):
         """Return tasks assigned to a specific user"""
@@ -264,3 +315,68 @@ class LeadTask(db.Model):
 
     def __repr__(self):
         return f'<LeadTask {self.id}: {self.description[:30]}>'
+
+
+class Phase(db.Model):
+    """Phase model for project milestones linked to billing"""
+    __tablename__ = 'phases'
+
+    STATUSES = ['not_started', 'in_progress', 'completed', 'invoiced']
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    amount = db.Column(db.Float, default=0.0)
+    hours_budget = db.Column(db.Float, default=0.0)
+    status = db.Column(db.String(50), default='not_started')
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def status_display(self):
+        """Human-readable status"""
+        return self.status.replace('_', ' ').title()
+
+    @property
+    def next_status(self):
+        """Get next status in progression"""
+        idx = self.STATUSES.index(self.status)
+        if idx < len(self.STATUSES) - 1:
+            return self.STATUSES[idx + 1]
+        return None
+
+    def __repr__(self):
+        return f'<Phase {self.name}>'
+
+
+class ProjectComment(db.Model):
+    """Comments for project pages (dev or billing)"""
+    __tablename__ = 'project_comments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    comment = db.Column(db.Text, nullable=False)
+    page_type = db.Column(db.String(20), default='dev')  # 'dev' or 'billing'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = db.relationship('User', backref='comments')
+
+    def __repr__(self):
+        return f'<ProjectComment {self.id}>'
+
+
+class ProjectLink(db.Model):
+    """Links associated with a project (shown on billing page)"""
+    __tablename__ = 'project_links'
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<ProjectLink {self.title}>'
