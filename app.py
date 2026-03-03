@@ -74,6 +74,68 @@ def dev_required(f):
     return decorated_function
 
 
+# =============================================================================
+# AUTO-CREATE MONTHLY SUPPORT PHASES
+# =============================================================================
+
+_support_phases_checked = None
+
+
+def ensure_monthly_support_phases():
+    """Auto-create current month's support phase for projects with support hours/amount."""
+    today = date.today()
+    month_name = today.strftime('%B %Y')  # e.g., "March 2026"
+
+    projects = Project.query.filter(
+        Project.status != 'archived',
+        db.or_(Project.monthly_support_hours > 0, Project.monthly_support_amount > 0)
+    ).all()
+
+    for project in projects:
+        if not project.start_date or project.start_date > today:
+            continue
+
+        phase_name = f"{month_name} Support Hours"
+
+        existing = Phase.query.filter_by(
+            project_id=project.id,
+            name=phase_name
+        ).first()
+
+        if not existing:
+            max_order = db.session.query(db.func.max(Phase.sort_order)).filter_by(
+                project_id=project.id
+            ).scalar() or 0
+            phase = Phase(
+                project_id=project.id,
+                name=phase_name,
+                amount=project.monthly_support_amount,
+                hours_budget=project.monthly_support_hours,
+                sort_order=max_order + 1,
+                status='not_started'
+            )
+            db.session.add(phase)
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+@app.before_request
+def check_support_phases():
+    """Run support phase check once per day."""
+    global _support_phases_checked
+    today = date.today()
+    if _support_phases_checked == today:
+        return
+    _support_phases_checked = today
+    try:
+        ensure_monthly_support_phases()
+    except Exception:
+        pass
+
+
 @app.route('/')
 @login_required
 def home():

@@ -10,7 +10,8 @@
       "Bash(python -c \"from app import app; print\\(''App imports OK''\\)\")",
       "Bash(python -c \"from proposal_parser import parse_proposal, extract_text_from_pdf; print\\(''Proposal parser imports OK''\\)\")",
       "Bash(python -c \":*)",
-      "Bash(python -c \"from models import Expense, Project; print\\(''Models OK''\\); print\\(''Expense fields:'', [c.name for c in Expense.__table__.columns]\\); print\\(''Project.total_expenses:'', type\\(Project.total_expenses.fget\\)\\); print\\(''Project.total_cost:'', type\\(Project.total_cost.fget\\)\\)\")"
+      "Bash(python -c \"from models import Expense, Project; print\\(''Models OK''\\); print\\(''Expense fields:'', [c.name for c in Expense.__table__.columns]\\); print\\(''Project.total_expenses:'', type\\(Project.total_expenses.fget\\)\\); print\\(''Project.total_cost:'', type\\(Project.total_cost.fget\\)\\)\")",
+      "Bash(python -c \"from app import app; print\\(''App loads OK''\\)\")"
     ],
     "deny": [],
     "ask": []
