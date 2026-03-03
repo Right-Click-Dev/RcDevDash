@@ -1,5 +1,5 @@
 """
-Migration Script to Add is_extension Column to Phases Table
+Migration Script - Add missing columns to projects and phases tables
 Works with both SQLite (local) and MySQL (PythonAnywhere)
 """
 
@@ -9,23 +9,29 @@ from sqlalchemy import text
 
 
 def migrate():
-    """Add is_extension column to phases table"""
-
     with app.app_context():
         print("=" * 50)
-        print("Running phase extension migration...")
+        print("Running migration...")
         print("=" * 50)
 
-        try:
-            db.session.execute(text('ALTER TABLE phases ADD COLUMN is_extension BOOLEAN DEFAULT 0'))
-            db.session.commit()
-            print("  + Added phases.is_extension")
-        except Exception as e:
-            db.session.rollback()
-            if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
-                print("  = phases.is_extension already exists")
-            else:
-                print(f"  ! Error adding phases.is_extension: {e}")
+        columns = [
+            ("projects", "monthly_support_hours", "FLOAT DEFAULT 0"),
+            ("projects", "monthly_support_amount", "FLOAT DEFAULT 0"),
+            ("projects", "proposal_file_path", "VARCHAR(500)"),
+            ("phases", "is_extension", "BOOLEAN DEFAULT 0"),
+        ]
+
+        for table, col_name, col_type in columns:
+            try:
+                db.session.execute(text(f'ALTER TABLE {table} ADD COLUMN {col_name} {col_type}'))
+                db.session.commit()
+                print(f"  + Added {table}.{col_name}")
+            except Exception as e:
+                db.session.rollback()
+                if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
+                    print(f"  = {table}.{col_name} already exists")
+                else:
+                    print(f"  ! Error adding {table}.{col_name}: {e}")
 
         print("\n" + "=" * 50)
         print("Migration completed!")
