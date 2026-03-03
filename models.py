@@ -221,6 +221,28 @@ class Project(db.Model):
             return 0
         return (self.profit / self.proposal_amount) * 100
 
+    @property
+    def current_phase(self):
+        """Get the current in-progress phase"""
+        for phase in self.phases:
+            if phase.status == 'in_progress':
+                return phase
+        return None
+
+    @property
+    def task_completion_percentage(self):
+        """Calculate % of tasks completed (all tasks, not per-user)"""
+        total = len(self.tasks)
+        if total == 0:
+            return 0
+        completed = sum(1 for t in self.tasks if t.completed)
+        return round((completed / total) * 100)
+
+    @property
+    def tasks_completed_count(self):
+        """Count of completed tasks"""
+        return sum(1 for t in self.tasks if t.completed)
+
     def tasks_for_user(self, user_id):
         """Return tasks assigned to a specific user"""
         return [t for t in self.tasks if t.assigned_to_id == user_id]

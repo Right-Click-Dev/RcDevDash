@@ -68,6 +68,8 @@
                     <tr>
                         <th>Project</th>
                         <th>Client</th>
+                        <th>Phase</th>
+                        <th class="text-center">% Complete</th>
                         <th>Halo</th>
                         <th class="text-end">Proposal</th>
                         <th class="text-end">Invoiced</th>
@@ -90,6 +92,27 @@
                             {% endif %}
                         </td>
                         <td class="text-muted">{{ project.billing_display or '-' }}</td>
+                        <td>
+                            {% if project.current_phase %}
+                            <span class="badge bg-info text-dark">{{ project.current_phase.name }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if project.tasks|length > 0 %}
+                            <div class="d-flex align-items-center justify-content-center gap-2">
+                                <div class="progress" style="width: 60px; height: 8px;">
+                                    <div class="progress-bar {% if project.task_completion_percentage == 100 %}bg-success{% elif project.task_completion_percentage >= 50 %}bg-info{% else %}bg-warning{% endif %}"
+                                         style="width: {{ project.task_completion_percentage }}%"></div>
+                                </div>
+                                <small class="text-muted">{{ project.task_completion_percentage }}%</small>
+                            </div>
+                            <small class="text-muted">{{ project.tasks_completed_count }}/{{ project.tasks|length }}</small>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if project.halo_link %}
                             <a href="{{ project.halo_link }}" target="_blank" class="text-decoration-none small">
