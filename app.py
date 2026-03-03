@@ -112,7 +112,7 @@ def ensure_monthly_support_phases():
                 amount=project.monthly_support_amount,
                 hours_budget=project.monthly_support_hours,
                 sort_order=max_order + 1,
-                status='not_started'
+                status='in_progress'
             )
             db.session.add(phase)
 
@@ -648,10 +648,15 @@ def update_project_info(project_id):
         project.billing_client = request.form.get('billing_client', '').strip() or None
         project.billing_for = request.form.get('billing_for', '').strip() or None
         project.proposal_amount = float(request.form.get('proposal_amount', 0) or 0)
-        project.is_recurring = request.form.get('is_recurring') == 'on'
-        project.monthly_amount = float(request.form.get('monthly_amount', 0) or 0)
         project.monthly_support_hours = float(request.form.get('monthly_support_hours', 0) or 0)
         project.monthly_support_amount = float(request.form.get('monthly_support_amount', 0) or 0)
+        # Auto-toggle recurring when support values are set; sync monthly_amount
+        if project.monthly_support_amount > 0 or project.monthly_support_hours > 0:
+            project.is_recurring = True
+            project.monthly_amount = project.monthly_support_amount
+        else:
+            project.is_recurring = request.form.get('is_recurring') == 'on'
+            project.monthly_amount = float(request.form.get('monthly_amount', 0) or 0)
         project.project_notes = request.form.get('project_notes', '').strip() or None
         project.hourly_cost_rate = float(request.form.get('hourly_cost_rate', 0) or 0)
 

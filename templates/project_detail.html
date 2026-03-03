@@ -83,7 +83,7 @@
                 <p class="card-text text-muted">{{ project.description or 'No description provided.' }}</p>
             </div>
             <div class="col-md-4">
-                {% if project.is_recurring %}
+                {% if project.is_recurring and project.monthly_support_hours == 0 and project.monthly_support_amount == 0 %}
                 <h5 class="card-title">Monthly Project</h5>
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Monthly Amount:</span>
@@ -860,6 +860,7 @@
 
                     <!-- Monthly Support Section -->
                     <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 0.05em;">Monthly Support</h6>
+                    <small class="text-muted d-block mb-2">Setting support values auto-enables recurring monthly</small>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="edit_monthly_support_hours_dev" class="form-label">Support Hours / Month</label>
