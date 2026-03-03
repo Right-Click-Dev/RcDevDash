@@ -5,7 +5,7 @@ from flask_login import LoginManager, login_required, current_user
 from datetime import datetime, date
 from config import Config
 from models import (db, User, Project, WorkItem, Task, Lead, LeadNote, LeadTask, Invoice,
-                    Client, Phase, ProjectComment, ProjectLink, project_assignments)
+                    Client, Phase, ProjectComment, ProjectLink, Expense, project_assignments)
 from auth import auth_bp
 from reports import generate_project_report
 
@@ -542,8 +542,9 @@ def billing_detail(project_id):
     billing_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='billing').order_by(ProjectComment.created_at.desc()).all()
     phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
     project_links = ProjectLink.query.filter_by(project_id=project_id).order_by(ProjectLink.created_at.desc()).all()
+    expenses = Expense.query.filter_by(project_id=project_id).order_by(Expense.expense_date.desc()).all()
     return render_template('billing_detail.html', project=project, invoices=invoices, comments=billing_comments,
-                           phases=phases, project_links=project_links, now=datetime.now())
+                           phases=phases, project_links=project_links, expenses=expenses, now=datetime.now())
 
 
 @app.route('/api/project/<int:project_id>/update-info', methods=['POST'])
@@ -647,6 +648,110 @@ def delete_invoice(invoice_id):
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting invoice: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+# =============================================================================
+# EXPENSE ROUTES
+# =============================================================================
+
+@app.route('/api/expense/add', methods=['POST'])
+@billing_required
+def add_expense():
+    """Add an expense to a project"""
+    try:
+        project_id = int(request.form.get('project_id'))
+        description = request.form.get('description', '').strip()
+        amount = float(request.form.get('amount', 0))
+        category = request.form.get('category', 'General').strip()
+        expense_date_str = request.form.get('expense_date')
+
+        if not description:
+            flash('Expense description is required.', 'error')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        if amount <= 0:
+            flash('Expense amount must be greater than zero.', 'error')
+            return redirect(url_for('billing_detail', project_id=project_id))
+
+        expense_date = datetime.strptime(expense_date_str, '%Y-%m-%d').date() if expense_date_str else date.today()
+
+        expense = Expense(
+            project_id=project_id,
+            description=description,
+            amount=amount,
+            category=category or 'General',
+            expense_date=expense_date
+        )
+        db.session.add(expense)
+        db.session.commit()
+
+        flash('Expense added successfully!', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error adding expense: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/api/expense/<int:expense_id>/edit', methods=['POST'])
+@billing_required
+def edit_expense(expense_id):
+    """Edit an expense"""
+    try:
+        expense = Expense.query.get_or_404(expense_id)
+        project_id = expense.project_id
+
+        expense.description = request.form.get('description', '').strip()
+        expense.amount = float(request.form.get('amount', 0))
+        expense.category = request.form.get('category', 'General').strip() or 'General'
+        expense.invoiced = request.form.get('invoiced') == 'on'
+        expense_date_str = request.form.get('expense_date')
+        if expense_date_str:
+            expense.expense_date = datetime.strptime(expense_date_str, '%Y-%m-%d').date()
+
+        db.session.commit()
+        flash('Expense updated successfully!', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating expense: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/api/expense/<int:expense_id>/delete', methods=['POST'])
+@billing_required
+def delete_expense(expense_id):
+    """Delete an expense"""
+    try:
+        expense = Expense.query.get_or_404(expense_id)
+        project_id = expense.project_id
+        db.session.delete(expense)
+        db.session.commit()
+        flash('Expense deleted successfully.', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting expense: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/api/expense/<int:expense_id>/toggle-invoiced', methods=['POST'])
+@billing_required
+def toggle_expense_invoiced(expense_id):
+    """Toggle an expense's invoiced status"""
+    try:
+        expense = Expense.query.get_or_404(expense_id)
+        project_id = expense.project_id
+        expense.invoiced = not expense.invoiced
+        db.session.commit()
+        flash(f'Expense marked as {"invoiced" if expense.invoiced else "uninvoiced"}.', 'success')
+        return redirect(url_for('billing_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating expense: {str(e)}', 'error')
         return redirect(url_for('billing_detail', project_id=project_id))
 
 
@@ -792,7 +897,7 @@ def delete_comment(comment_id):
 # =============================================================================
 
 @app.route('/api/phase/add', methods=['POST'])
-@billing_required
+@admin_required
 def add_phase():
     """Add a phase to a project"""
     try:
@@ -801,10 +906,13 @@ def add_phase():
         description = request.form.get('description', '').strip()
         amount = float(request.form.get('amount', 0) or 0)
         hours_budget = float(request.form.get('hours_budget', 0) or 0)
+        redirect_to = request.form.get('redirect_to', 'billing')
+
+        redirect_url = url_for('project_detail', project_id=project_id) if redirect_to == 'dev' else url_for('billing_detail', project_id=project_id)
 
         if not name:
             flash('Phase name is required.', 'error')
-            return redirect(url_for('billing_detail', project_id=project_id))
+            return redirect(redirect_url)
 
         # Get next sort order
         max_order = db.session.query(db.func.max(Phase.sort_order)).filter_by(project_id=project_id).scalar() or 0
@@ -820,61 +928,71 @@ def add_phase():
         db.session.add(phase)
         db.session.commit()
         flash(f'Phase "{name}" added!', 'success')
-        return redirect(url_for('billing_detail', project_id=project_id))
+        return redirect(redirect_url)
 
     except Exception as e:
         db.session.rollback()
         flash(f'Error adding phase: {str(e)}', 'error')
-        return redirect(url_for('billing_detail', project_id=project_id))
+        return redirect(url_for('project_detail', project_id=project_id))
 
 
 @app.route('/api/phase/<int:phase_id>/edit', methods=['POST'])
-@billing_required
+@admin_required
 def edit_phase(phase_id):
     """Edit a phase"""
     try:
         phase = Phase.query.get_or_404(phase_id)
         project_id = phase.project_id
+        redirect_to = request.form.get('redirect_to', 'billing')
 
         phase.name = request.form.get('name', '').strip() or phase.name
         phase.description = request.form.get('description', '').strip() or None
         phase.amount = float(request.form.get('amount', 0) or 0)
         phase.hours_budget = float(request.form.get('hours_budget', 0) or 0)
+        new_status = request.form.get('status')
+        if new_status and new_status in Phase.STATUSES:
+            phase.status = new_status
+
+        redirect_url = url_for('project_detail', project_id=project_id) if redirect_to == 'dev' else url_for('billing_detail', project_id=project_id)
 
         db.session.commit()
         flash('Phase updated!', 'success')
-        return redirect(url_for('billing_detail', project_id=project_id))
+        return redirect(redirect_url)
     except Exception as e:
         db.session.rollback()
         flash(f'Error updating phase: {str(e)}', 'error')
-        return redirect(url_for('billing_detail', project_id=phase.project_id))
+        return redirect(url_for('project_detail', project_id=phase.project_id))
 
 
 @app.route('/api/phase/<int:phase_id>/delete', methods=['POST'])
-@billing_required
+@admin_required
 def delete_phase(phase_id):
     """Delete a phase"""
     try:
         phase = Phase.query.get_or_404(phase_id)
         project_id = phase.project_id
+        redirect_to = request.form.get('redirect_to', 'billing')
+        redirect_url = url_for('project_detail', project_id=project_id) if redirect_to == 'dev' else url_for('billing_detail', project_id=project_id)
         db.session.delete(phase)
         db.session.commit()
         flash('Phase deleted.', 'success')
-        return redirect(url_for('billing_detail', project_id=project_id))
+        return redirect(redirect_url)
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting phase: {str(e)}', 'error')
-        return redirect(url_for('billing_detail', project_id=phase.project_id))
+        return redirect(url_for('project_detail', project_id=phase.project_id))
 
 
 @app.route('/api/phase/<int:phase_id>/update-status', methods=['POST'])
-@billing_required
+@admin_required
 def update_phase_status(phase_id):
     """Advance phase to next status"""
     try:
         phase = Phase.query.get_or_404(phase_id)
         project_id = phase.project_id
         new_status = request.form.get('status')
+        redirect_to = request.form.get('redirect_to', 'billing')
+        redirect_url = url_for('project_detail', project_id=project_id) if redirect_to == 'dev' else url_for('billing_detail', project_id=project_id)
 
         if new_status and new_status in Phase.STATUSES:
             phase.status = new_status
@@ -883,11 +1001,11 @@ def update_phase_status(phase_id):
         else:
             flash('Invalid status.', 'error')
 
-        return redirect(url_for('billing_detail', project_id=project_id))
+        return redirect(redirect_url)
     except Exception as e:
         db.session.rollback()
         flash(f'Error updating phase status: {str(e)}', 'error')
-        return redirect(url_for('billing_detail', project_id=phase.project_id))
+        return redirect(url_for('project_detail', project_id=phase.project_id))
 
 
 # =============================================================================

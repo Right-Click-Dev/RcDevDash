@@ -165,6 +165,47 @@ def migrate():
             else:
                 print(f"  ! Error creating project_links table: {e}")
 
+        # --- Expenses table ---
+        if is_sqlite:
+            create_sql = '''
+                CREATE TABLE IF NOT EXISTS expenses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id INTEGER NOT NULL,
+                    description TEXT NOT NULL,
+                    amount FLOAT NOT NULL DEFAULT 0.0,
+                    category VARCHAR(100) DEFAULT 'General',
+                    expense_date DATE DEFAULT CURRENT_DATE,
+                    invoiced BOOLEAN DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (project_id) REFERENCES projects(id)
+                )
+            '''
+        else:
+            create_sql = '''
+                CREATE TABLE IF NOT EXISTS expenses (
+                    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                    project_id INTEGER NOT NULL,
+                    description TEXT NOT NULL,
+                    amount FLOAT NOT NULL DEFAULT 0.0,
+                    category VARCHAR(100) DEFAULT 'General',
+                    expense_date DATE DEFAULT (CURRENT_DATE),
+                    invoiced BOOLEAN DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (project_id) REFERENCES projects(id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            '''
+
+        try:
+            db.session.execute(text(create_sql))
+            db.session.commit()
+            print("  + Created expenses table")
+        except Exception as e:
+            db.session.rollback()
+            if "already exists" in str(e).lower():
+                print("  = expenses table already exists")
+            else:
+                print(f"  ! Error creating expenses table: {e}")
+
         # --- New columns on projects table ---
         project_columns = [
             ("client_id", "INTEGER"),
@@ -206,6 +247,7 @@ def migrate():
         print("  - Project links on billing page")
         print("  - Project archiving")
         print("  - Profitability calculator")
+        print("  - Expense tracking")
         print("=" * 50)
 
 

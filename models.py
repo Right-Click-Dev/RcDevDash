@@ -102,6 +102,7 @@ class Project(db.Model):
     phases = db.relationship('Phase', backref='project', lazy=True, cascade='all, delete-orphan', order_by='Phase.sort_order')
     comments = db.relationship('ProjectComment', backref='project', lazy=True, cascade='all, delete-orphan')
     links = db.relationship('ProjectLink', backref='project', lazy=True, cascade='all, delete-orphan')
+    expenses = db.relationship('Expense', backref='project', lazy=True, cascade='all, delete-orphan')
 
     @property
     def hours_used(self):
@@ -154,14 +155,29 @@ class Project(db.Model):
         return self.status == 'archived'
 
     @property
+    def total_expenses(self):
+        """Calculate total expenses"""
+        return sum(e.amount for e in self.expenses)
+
+    @property
+    def total_uninvoiced_expenses(self):
+        """Calculate total uninvoiced expenses"""
+        return sum(e.amount for e in self.expenses if not e.invoiced)
+
+    @property
     def dev_cost(self):
         """Calculate development cost based on hours and cost rate"""
         return self.hours_used * self.hourly_cost_rate
 
     @property
+    def total_cost(self):
+        """Calculate total cost (dev cost + expenses)"""
+        return self.dev_cost + self.total_expenses
+
+    @property
     def profit(self):
-        """Calculate profit (revenue - dev cost)"""
-        return self.proposal_amount - self.dev_cost
+        """Calculate profit (revenue - dev cost - expenses)"""
+        return self.proposal_amount - self.dev_cost - self.total_expenses
 
     @property
     def profit_margin(self):
@@ -366,6 +382,23 @@ class ProjectComment(db.Model):
 
     def __repr__(self):
         return f'<ProjectComment {self.id}>'
+
+
+class Expense(db.Model):
+    """Expense model for tracking project costs to invoice against"""
+    __tablename__ = 'expenses'
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    amount = db.Column(db.Float, nullable=False, default=0.0)
+    category = db.Column(db.String(100), default='General')
+    expense_date = db.Column(db.Date, default=datetime.utcnow)
+    invoiced = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Expense {self.id}: ${self.amount:.2f}>'
 
 
 class ProjectLink(db.Model):
