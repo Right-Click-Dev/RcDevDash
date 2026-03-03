@@ -39,8 +39,11 @@
     <div class="col-lg-5 mb-4">
         <!-- Billing Info Card -->
         <div class="card mb-4">
-            <div class="card-header bg-dark text-white">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-building me-1"></i> Project Info</h5>
+                <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#editBillingModal" title="Edit Project Info">
+                    <i class="bi bi-pencil"></i>
+                </button>
             </div>
             <div class="card-body">
                 {% if project.description %}
@@ -735,11 +738,70 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit Billing & Sales Info</h5>
+                <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit Project Info</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('update_project_info', project_id=project.id) }}">
                 <div class="modal-body">
+                    <!-- Project Details Section -->
+                    <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 0.05em;">Project Details</h6>
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label for="edit_name" class="form-label">Project Name</label>
+                            <input type="text" class="form-control" id="edit_name" name="name"
+                                   value="{{ project.name }}" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_project_type" class="form-label">Project Type</label>
+                            <select class="form-select" id="edit_project_type" name="project_type">
+                                <option value="External" {% if project.project_type == 'External' %}selected{% endif %}>External</option>
+                                <option value="Internal" {% if project.project_type == 'Internal' %}selected{% endif %}>Internal</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_description" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="edit_description" name="description"
+                               value="{{ project.description or '' }}" placeholder="Brief project description">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_client_id" class="form-label">Client</label>
+                            <select class="form-select" id="edit_client_id" name="client_id"
+                                    onchange="document.getElementById('newClientGroup').style.display = this.value === 'new' ? 'block' : 'none'">
+                                <option value="">-- No Client --</option>
+                                {% for c in clients %}
+                                <option value="{{ c.id }}" {% if project.client_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                                {% endfor %}
+                                <option value="new">+ Add New Client</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3" id="newClientGroup" style="display: none;">
+                            <label for="edit_new_client_name" class="form-label">New Client Name</label>
+                            <input type="text" class="form-control" id="edit_new_client_name" name="new_client_name"
+                                   placeholder="Enter client name">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_hours_budget" class="form-label">Hours Budget</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="edit_hours_budget" name="hours_budget"
+                                       step="0.5" min="0" value="{{ project.hours_budget }}">
+                                <span class="input-group-text">hrs</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="edit_start_date" name="start_date"
+                                   value="{{ project.start_date.strftime('%Y-%m-%d') if project.start_date else '' }}">
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Billing & Sales Section -->
+                    <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 0.05em;">Billing & Sales</h6>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="edit_billing_client" class="form-label">Billing Client</label>
@@ -792,8 +854,11 @@
                             </div>
                         </div>
                     </div>
+
+                    <hr>
+
                     <div class="mb-0">
-                        <label for="edit_project_notes" class="form-label">Notes / Comments</label>
+                        <label for="edit_project_notes" class="form-label">Notes</label>
                         <textarea class="form-control" id="edit_project_notes" name="project_notes"
                                   rows="3" placeholder="General notes about this project...">{{ project.project_notes or '' }}</textarea>
                     </div>

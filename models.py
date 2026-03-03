@@ -134,8 +134,8 @@ class Project(db.Model):
 
     @property
     def remaining_balance(self):
-        """Calculate remaining balance from proposal"""
-        return self.proposal_amount - self.total_invoiced
+        """Calculate remaining balance including uninvoiced expenses"""
+        return self.proposal_amount + self.total_uninvoiced_expenses - self.total_invoiced
 
     @property
     def billing_display(self):

@@ -543,17 +543,40 @@ def billing_detail(project_id):
     phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
     project_links = ProjectLink.query.filter_by(project_id=project_id).order_by(ProjectLink.created_at.desc()).all()
     expenses = Expense.query.filter_by(project_id=project_id).order_by(Expense.expense_date.desc()).all()
+    clients = Client.query.order_by(Client.name).all()
     return render_template('billing_detail.html', project=project, invoices=invoices, comments=billing_comments,
-                           phases=phases, project_links=project_links, expenses=expenses, now=datetime.now())
+                           phases=phases, project_links=project_links, expenses=expenses, clients=clients, now=datetime.now())
 
 
 @app.route('/api/project/<int:project_id>/update-info', methods=['POST'])
 @billing_required
 def update_project_info(project_id):
-    """Update project billing info, Halo link, and notes"""
+    """Update project info, billing, and notes"""
     try:
         project = Project.query.get_or_404(project_id)
 
+        # Project info fields
+        project.name = request.form.get('name', '').strip() or project.name
+        project.description = request.form.get('description', '').strip() or None
+        project.project_type = request.form.get('project_type', 'External')
+        project.hours_budget = float(request.form.get('hours_budget', 0) or 0)
+        start_date_str = request.form.get('start_date', '').strip()
+        project.start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
+
+        # Client
+        new_client_name = request.form.get('new_client_name', '').strip()
+        if new_client_name:
+            client = Client.query.filter_by(name=new_client_name).first()
+            if not client:
+                client = Client(name=new_client_name)
+                db.session.add(client)
+                db.session.flush()
+            project.client_id = client.id
+        else:
+            client_id = request.form.get('client_id', '').strip()
+            project.client_id = int(client_id) if client_id else None
+
+        # Billing fields
         project.halo_link = request.form.get('halo_link', '').strip() or None
         project.billing_client = request.form.get('billing_client', '').strip() or None
         project.billing_for = request.form.get('billing_for', '').strip() or None
