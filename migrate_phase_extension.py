@@ -19,6 +19,9 @@ def migrate():
             ("projects", "monthly_support_amount", "FLOAT DEFAULT 0"),
             ("projects", "proposal_file_path", "VARCHAR(500)"),
             ("phases", "is_extension", "BOOLEAN DEFAULT 0"),
+            ("clients", "contact_name", "VARCHAR(200)"),
+            ("clients", "contact_email", "VARCHAR(200)"),
+            ("clients", "contact_phone", "VARCHAR(50)"),
         ]
 
         for table, col_name, col_type in columns:
