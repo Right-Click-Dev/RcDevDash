@@ -120,8 +120,9 @@ def project_detail(project_id):
     developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN])).order_by(User.username).all()
     dev_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='dev').order_by(ProjectComment.created_at.desc()).all()
     phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
+    clients = Client.query.order_by(Client.name).all()
     return render_template('project_detail.html', project=project, work_items=work_items, tasks=tasks,
-                           developers=developers, comments=dev_comments, phases=phases, now=datetime.now())
+                           developers=developers, comments=dev_comments, phases=phases, clients=clients, now=datetime.now())
 
 
 @app.route('/api/project/create', methods=['POST'])
@@ -344,6 +345,7 @@ def add_task():
         description = request.form.get('description')
         deadline_str = request.form.get('deadline')
         assigned_to_id = request.form.get('assigned_to_id')
+        phase_id = request.form.get('phase_id')
 
         if not description:
             flash('Task description is required.', 'error')
@@ -356,7 +358,8 @@ def add_task():
             project_id=project_id,
             description=description,
             deadline=deadline,
-            assigned_to_id=int(assigned_to_id) if assigned_to_id else None
+            assigned_to_id=int(assigned_to_id) if assigned_to_id else None,
+            phase_id=int(phase_id) if phase_id else None
         )
         db.session.add(task)
         db.session.commit()
@@ -499,8 +502,10 @@ def dev_project_view(project_id):
     my_tasks = Task.query.filter_by(project_id=project_id, assigned_to_id=current_user.id).order_by(Task.completed, Task.deadline).all()
     my_work_items = WorkItem.query.filter_by(project_id=project_id, created_by_id=current_user.id).order_by(WorkItem.work_date.desc()).all()
     dev_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='dev').order_by(ProjectComment.created_at.desc()).all()
+    phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
+    current_phase = Phase.query.filter_by(project_id=project_id, status='in_progress').first()
     return render_template('dev_project_view.html', project=project, tasks=my_tasks, work_items=my_work_items,
-                           comments=dev_comments, now=datetime.now())
+                           comments=dev_comments, phases=phases, current_phase=current_phase, now=datetime.now())
 
 
 @app.route('/report/<int:project_id>')
@@ -583,16 +588,24 @@ def update_project_info(project_id):
         project.proposal_amount = float(request.form.get('proposal_amount', 0) or 0)
         project.is_recurring = request.form.get('is_recurring') == 'on'
         project.monthly_amount = float(request.form.get('monthly_amount', 0) or 0)
+        project.monthly_support_hours = float(request.form.get('monthly_support_hours', 0) or 0)
+        project.monthly_support_amount = float(request.form.get('monthly_support_amount', 0) or 0)
         project.project_notes = request.form.get('project_notes', '').strip() or None
         project.hourly_cost_rate = float(request.form.get('hourly_cost_rate', 0) or 0)
 
         db.session.commit()
         flash('Project info updated successfully!', 'success')
+        redirect_to = request.form.get('redirect_to', 'billing')
+        if redirect_to == 'dev':
+            return redirect(url_for('project_detail', project_id=project_id))
         return redirect(url_for('billing_detail', project_id=project_id))
 
     except Exception as e:
         db.session.rollback()
         flash(f'Error updating project info: {str(e)}', 'error')
+        redirect_to = request.form.get('redirect_to', 'billing')
+        if redirect_to == 'dev':
+            return redirect(url_for('project_detail', project_id=project_id))
         return redirect(url_for('billing_detail', project_id=project_id))
 
 
@@ -814,6 +827,44 @@ def unarchive_project(project_id):
         db.session.rollback()
         flash(f'Error restoring project: {str(e)}', 'error')
         return redirect(url_for('project_detail', project_id=project_id))
+
+
+@app.route('/api/project/<int:project_id>/hold', methods=['POST'])
+@billing_required
+def hold_project(project_id):
+    """Put a project on hold"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        project.status = 'on_hold'
+        db.session.commit()
+        flash(f'Project "{project.name}" has been put on hold.', 'info')
+        redirect_to = request.form.get('redirect_to', 'billing')
+        if redirect_to == 'dev':
+            return redirect(url_for('project_detail', project_id=project_id))
+        return redirect(url_for('billing_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating project: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
+
+
+@app.route('/api/project/<int:project_id>/reactivate', methods=['POST'])
+@billing_required
+def reactivate_project(project_id):
+    """Reactivate a project from on hold"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        project.status = 'active'
+        db.session.commit()
+        flash(f'Project "{project.name}" has been reactivated.', 'success')
+        redirect_to = request.form.get('redirect_to', 'billing')
+        if redirect_to == 'dev':
+            return redirect(url_for('project_detail', project_id=project_id))
+        return redirect(url_for('billing_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating project: {str(e)}', 'error')
+        return redirect(url_for('billing_detail', project_id=project_id))
 
 
 # =============================================================================

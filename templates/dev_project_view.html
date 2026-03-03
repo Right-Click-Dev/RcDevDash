@@ -12,6 +12,11 @@
         </ol>
     </nav>
     <h1>{{ project.name }}</h1>
+    {% if current_phase %}
+    <div class="d-inline-flex align-items-center mt-1">
+        <span class="badge bg-primary"><i class="bi bi-signpost-split me-1"></i> Current Phase: {{ current_phase.name }}</span>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Project Info Card -->
@@ -71,9 +76,20 @@
                     <input type="text" class="form-control form-control-sm" id="task_description" name="description" required>
                 </div>
 
-                <div class="mb-2">
-                    <label for="deadline" class="form-label small">Deadline</label>
-                    <input type="date" class="form-control form-control-sm" id="deadline" name="deadline">
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <label for="deadline" class="form-label small">Deadline</label>
+                        <input type="date" class="form-control form-control-sm" id="deadline" name="deadline">
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label for="task_phase_id" class="form-label small">Phase</label>
+                        <select class="form-select form-select-sm" id="task_phase_id" name="phase_id">
+                            <option value="">No Phase</option>
+                            {% for phase in phases %}
+                            <option value="{{ phase.id }}" {% if current_phase and phase.id == current_phase.id %}selected{% endif %}>{{ phase.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-success btn-sm w-100">
@@ -82,37 +98,95 @@
             </form>
         </div>
 
-        <!-- Tasks List -->
+        <!-- Tasks List (grouped by phase) -->
         {% if tasks %}
         <div class="tasks-list">
-            {% for task in tasks %}
-            <div class="d-flex align-items-start border-bottom pb-2 mb-2 task-item {% if task.completed %}task-completed{% endif %}" id="task-row-{{ task.id }}">
-                <div class="form-check me-2">
-                    <input class="form-check-input dev-task-checkbox" type="checkbox"
-                           data-task-id="{{ task.id }}"
-                           data-task-desc="{{ task.description }}"
-                           {% if task.completed %}checked{% endif %}>
-                </div>
-                <div class="flex-grow-1">
-                    <p class="mb-1 {% if task.completed %}text-decoration-line-through text-muted{% endif %}">
-                        {{ task.description }}
-                    </p>
-                    {% if task.deadline %}
-                    <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
-                        <i class="bi bi-calendar-event me-1"></i>{{ task.deadline|dateformat('%b %d, %Y') }}
-                        {% if task.is_overdue %}
-                        <span class="badge bg-danger ms-1">Overdue</span>
+            {# Group tasks by phase #}
+            {% set unphased_tasks = tasks|selectattr('phase_id', 'none')|list %}
+            {% for phase in phases %}
+                {% set phase_tasks = tasks|selectattr('phase_id', 'equalto', phase.id)|list %}
+                {% if phase_tasks %}
+                <div class="mb-3">
+                    <div class="d-flex align-items-center mb-2 py-1 px-2 rounded" style="background: #f0f0f0;">
+                        <i class="bi bi-signpost-split me-2 text-primary"></i>
+                        <strong class="small">{{ phase.name }}</strong>
+                        <span class="badge bg-{{ 'secondary' if phase.status == 'not_started' else 'primary' if phase.status == 'in_progress' else 'success' if phase.status == 'completed' else 'warning text-dark' }} ms-2" style="font-size: 0.65rem;">
+                            {{ phase.status_display }}
+                        </span>
+                        <span class="text-muted small ms-auto">{{ phase_tasks|selectattr('completed')|list|length }}/{{ phase_tasks|length }}</span>
+                    </div>
+                    {% for task in phase_tasks %}
+                    <div class="d-flex align-items-start border-bottom pb-2 mb-2 task-item {% if task.completed %}task-completed{% endif %} ps-3" id="task-row-{{ task.id }}">
+                        <div class="form-check me-2">
+                            <input class="form-check-input dev-task-checkbox" type="checkbox"
+                                   data-task-id="{{ task.id }}"
+                                   data-task-desc="{{ task.description }}"
+                                   {% if task.completed %}checked{% endif %}>
+                        </div>
+                        <div class="flex-grow-1">
+                            <p class="mb-1 {% if task.completed %}text-decoration-line-through text-muted{% endif %}">
+                                {{ task.description }}
+                            </p>
+                            {% if task.deadline %}
+                            <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
+                                <i class="bi bi-calendar-event me-1"></i>{{ task.deadline|dateformat('%b %d, %Y') }}
+                                {% if task.is_overdue %}
+                                <span class="badge bg-danger ms-1">Overdue</span>
+                                {% endif %}
+                            </small>
+                            {% endif %}
+                        </div>
+                        {% if not task.completed %}
+                        <button class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}" title="Edit task">
+                            <i class="bi bi-pencil"></i>
+                        </button>
                         {% endif %}
-                    </small>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            {% endfor %}
+
+            {# Unphased tasks #}
+            {% if unphased_tasks %}
+            <div class="mb-3">
+                {% if phases %}
+                <div class="d-flex align-items-center mb-2 py-1 px-2 rounded" style="background: #f0f0f0;">
+                    <i class="bi bi-inbox me-2 text-muted"></i>
+                    <strong class="small text-muted">No Phase</strong>
+                    <span class="text-muted small ms-auto">{{ unphased_tasks|selectattr('completed')|list|length }}/{{ unphased_tasks|length }}</span>
+                </div>
+                {% endif %}
+                {% for task in unphased_tasks %}
+                <div class="d-flex align-items-start border-bottom pb-2 mb-2 task-item {% if task.completed %}task-completed{% endif %} {% if phases %}ps-3{% endif %}" id="task-row-{{ task.id }}">
+                    <div class="form-check me-2">
+                        <input class="form-check-input dev-task-checkbox" type="checkbox"
+                               data-task-id="{{ task.id }}"
+                               data-task-desc="{{ task.description }}"
+                               {% if task.completed %}checked{% endif %}>
+                    </div>
+                    <div class="flex-grow-1">
+                        <p class="mb-1 {% if task.completed %}text-decoration-line-through text-muted{% endif %}">
+                            {{ task.description }}
+                        </p>
+                        {% if task.deadline %}
+                        <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
+                            <i class="bi bi-calendar-event me-1"></i>{{ task.deadline|dateformat('%b %d, %Y') }}
+                            {% if task.is_overdue %}
+                            <span class="badge bg-danger ms-1">Overdue</span>
+                            {% endif %}
+                        </small>
+                        {% endif %}
+                    </div>
+                    {% if not task.completed %}
+                    <button class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}" title="Edit task">
+                        <i class="bi bi-pencil"></i>
+                    </button>
                     {% endif %}
                 </div>
-                {% if not task.completed %}
-                <button class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}" title="Edit task">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                {% endif %}
+                {% endfor %}
             </div>
-            {% endfor %}
+            {% endif %}
         </div>
 
         <div class="mt-3 pt-3 border-top">

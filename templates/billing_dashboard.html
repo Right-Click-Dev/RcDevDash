@@ -78,13 +78,15 @@
                 </thead>
                 <tbody>
                     {% for project in projects %}
-                    <tr class="billing-row {% if project.is_archived %}opacity-75{% endif %}">
+                    <tr class="billing-row {% if project.is_archived or project.is_on_hold %}opacity-75{% endif %}">
                         <td>
                             <a href="{{ url_for('billing_detail', project_id=project.id) }}" class="text-decoration-none fw-bold">
                                 {{ project.name }}
                             </a>
                             {% if project.is_archived %}
                             <span class="badge bg-secondary ms-1">Archived</span>
+                            {% elif project.is_on_hold %}
+                            <span class="badge bg-warning text-dark ms-1">On Hold</span>
                             {% endif %}
                         </td>
                         <td class="text-muted">{{ project.billing_display or '-' }}</td>

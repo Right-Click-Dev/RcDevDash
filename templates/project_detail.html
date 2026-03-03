@@ -16,6 +16,8 @@
             {{ project.name }}
             {% if project.is_archived %}
             <span class="badge bg-secondary fs-6 align-middle">Archived</span>
+            {% elif project.is_on_hold %}
+            <span class="badge bg-warning text-dark fs-6 align-middle">On Hold</span>
             {% endif %}
         </h1>
         {% if project.client %}
@@ -32,6 +34,21 @@
             <i class="bi bi-file-earmark-pdf me-1"></i> Report
         </a>
         {% if current_user.is_admin %}
+            {% if project.is_on_hold %}
+            <form method="POST" action="{{ url_for('reactivate_project', project_id=project.id) }}" class="d-inline">
+                <input type="hidden" name="redirect_to" value="dev">
+                <button type="submit" class="btn btn-outline-success">
+                    <i class="bi bi-play-circle me-1"></i> Reactivate
+                </button>
+            </form>
+            {% elif not project.is_archived %}
+            <form method="POST" action="{{ url_for('hold_project', project_id=project.id) }}" class="d-inline">
+                <input type="hidden" name="redirect_to" value="dev">
+                <button type="submit" class="btn btn-outline-warning">
+                    <i class="bi bi-pause-circle me-1"></i> On Hold
+                </button>
+            </form>
+            {% endif %}
             {% if project.is_archived %}
             <form method="POST" action="{{ url_for('unarchive_project', project_id=project.id) }}" class="d-inline">
                 <button type="submit" class="btn btn-outline-success">
@@ -55,7 +72,14 @@
     <div class="card-body">
         <div class="row">
             <div class="col-md-8">
-                <h5 class="card-title">Project Information</h5>
+                <div class="d-flex justify-content-between align-items-start">
+                    <h5 class="card-title">Project Information</h5>
+                    {% if current_user.is_admin %}
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editProjectInfoModal" title="Edit Project Info">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    {% endif %}
+                </div>
                 <p class="card-text text-muted">{{ project.description or 'No description provided.' }}</p>
             </div>
             <div class="col-md-4">
@@ -94,6 +118,38 @@
                          style="width: {{ project.progress_percentage }}%">
                         {{ "%.0f"|format(project.progress_percentage) }}%
                     </div>
+                </div>
+                {% endif %}
+
+                {% if project.monthly_support_hours > 0 or project.monthly_support_amount > 0 %}
+                <div class="mt-3 p-2 bg-light rounded">
+                    <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">
+                        <i class="bi bi-calendar-check me-1"></i>Monthly Support
+                    </small>
+                    <div class="d-flex justify-content-between mt-1">
+                        <span class="text-muted small">Hours / month:</span>
+                        <span class="fw-bold small">{{ "%.1f"|format(project.monthly_support_hours) }} hrs</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Amount / month:</span>
+                        <span class="fw-bold small">${{ "{:,.2f}".format(project.monthly_support_amount) }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Months accrued:</span>
+                        <span class="fw-bold small">{{ project.monthly_support_months }}</span>
+                    </div>
+                    {% if project.monthly_support_hours > 0 %}
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Hours accrued:</span>
+                        <span class="fw-bold small text-info">{{ "%.1f"|format(project.monthly_support_hours_accrued) }} hrs</span>
+                    </div>
+                    {% endif %}
+                    {% if project.monthly_support_amount > 0 %}
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">$ accrued:</span>
+                        <span class="fw-bold small text-success">${{ "{:,.2f}".format(project.monthly_support_amount_accrued) }}</span>
+                    </div>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -434,16 +490,25 @@
                         </div>
 
                         <div class="row">
-                            <div class="col-md-6 mb-2">
+                            <div class="col-md-4 mb-2">
                                 <label for="deadline" class="form-label small">Deadline</label>
                                 <input type="date" class="form-control form-control-sm" id="deadline" name="deadline">
                             </div>
-                            <div class="col-md-6 mb-2">
+                            <div class="col-md-4 mb-2">
                                 <label for="assigned_to_id" class="form-label small">Assign To</label>
                                 <select class="form-select form-select-sm" id="assigned_to_id" name="assigned_to_id">
                                     <option value="">Unassigned</option>
                                     {% for dev in developers %}
                                     <option value="{{ dev.id }}">{{ dev.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="task_phase_id" class="form-label small">Phase</label>
+                                <select class="form-select form-select-sm" id="task_phase_id" name="phase_id">
+                                    <option value="">No Phase</option>
+                                    {% for phase in phases %}
+                                    <option value="{{ phase.id }}">{{ phase.name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -455,47 +520,115 @@
                     </form>
                 </div>
 
-                <!-- Tasks List -->
-                <div class="tasks-list" style="max-height: 500px; overflow-y: auto;">
+                <!-- Tasks List (grouped by phase) -->
+                <div class="tasks-list" style="max-height: 600px; overflow-y: auto;">
                     {% if tasks %}
-                        {% for task in tasks %}
-                        <div class="d-flex align-items-start border-bottom pb-2 mb-2 task-item {% if task.completed %}task-completed{% endif %}">
-                            <div class="form-check me-2">
-                                <input class="form-check-input task-checkbox" type="checkbox"
-                                       data-task-id="{{ task.id }}"
-                                       {% if task.completed %}checked{% endif %}>
+                        {# Group tasks by phase #}
+                        {% set unphased_tasks = tasks|selectattr('phase_id', 'none')|list %}
+                        {% for phase in phases %}
+                            {% set phase_tasks = tasks|selectattr('phase_id', 'equalto', phase.id)|list %}
+                            {% if phase_tasks %}
+                            <div class="mb-3">
+                                <div class="d-flex align-items-center mb-2 py-1 px-2 rounded" style="background: #f0f0f0;">
+                                    <i class="bi bi-signpost-split me-2 text-primary"></i>
+                                    <strong class="small">{{ phase.name }}</strong>
+                                    <span class="badge bg-{{ 'secondary' if phase.status == 'not_started' else 'primary' if phase.status == 'in_progress' else 'success' if phase.status == 'completed' else 'warning text-dark' }} ms-2" style="font-size: 0.65rem;">
+                                        {{ phase.status_display }}
+                                    </span>
+                                    <span class="text-muted small ms-auto">{{ phase_tasks|selectattr('completed')|list|length }}/{{ phase_tasks|length }}</span>
+                                </div>
+                                {% for task in phase_tasks %}
+                                <div class="d-flex align-items-start border-bottom pb-2 mb-2 task-item {% if task.completed %}task-completed{% endif %} ps-3">
+                                    <div class="form-check me-2">
+                                        <input class="form-check-input task-checkbox" type="checkbox"
+                                               data-task-id="{{ task.id }}"
+                                               {% if task.completed %}checked{% endif %}>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <p class="mb-1 {% if task.completed %}text-decoration-line-through text-muted{% endif %}">
+                                            {{ task.description }}
+                                            {% if task.assigned_to %}
+                                            <span class="badge bg-info ms-1"><i class="bi bi-person me-1"></i>{{ task.assigned_to.username }}</span>
+                                            {% endif %}
+                                        </p>
+                                        {% if task.deadline %}
+                                        <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
+                                            <i class="bi bi-calendar-event me-1"></i>{{ task.deadline|dateformat('%b %d, %Y') }}
+                                            {% if task.is_overdue %}
+                                            <span class="badge bg-danger ms-1">Overdue</span>
+                                            {% endif %}
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                    <div class="btn-group btn-group-sm ms-2">
+                                        <select class="form-select form-select-sm task-assign-select" data-task-id="{{ task.id }}" style="width: auto; font-size: 0.75rem;">
+                                            <option value="">Unassigned</option>
+                                            {% for dev in developers %}
+                                            <option value="{{ dev.id }}" {% if task.assigned_to_id == dev.id %}selected{% endif %}>{{ dev.username }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Delete this task?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                {% endfor %}
                             </div>
-                            <div class="flex-grow-1">
-                                <p class="mb-1 {% if task.completed %}text-decoration-line-through text-muted{% endif %}">
-                                    {{ task.description }}
-                                    {% if task.assigned_to %}
-                                    <span class="badge bg-info ms-1"><i class="bi bi-person me-1"></i>{{ task.assigned_to.username }}</span>
-                                    {% endif %}
-                                </p>
-                                {% if task.deadline %}
-                                <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
-                                    <i class="bi bi-calendar-event me-1"></i>{{ task.deadline|dateformat('%b %d, %Y') }}
-                                    {% if task.is_overdue %}
-                                    <span class="badge bg-danger ms-1">Overdue</span>
-                                    {% endif %}
-                                </small>
-                                {% endif %}
-                            </div>
-                            <div class="btn-group btn-group-sm ms-2">
-                                <select class="form-select form-select-sm task-assign-select" data-task-id="{{ task.id }}" style="width: auto; font-size: 0.75rem;">
-                                    <option value="">Unassigned</option>
-                                    {% for dev in developers %}
-                                    <option value="{{ dev.id }}" {% if task.assigned_to_id == dev.id %}selected{% endif %}>{{ dev.username }}</option>
-                                    {% endfor %}
-                                </select>
-                                <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Delete this task?');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
+                            {% endif %}
                         {% endfor %}
+
+                        {# Unphased tasks #}
+                        {% if unphased_tasks %}
+                        <div class="mb-3">
+                            {% if phases %}
+                            <div class="d-flex align-items-center mb-2 py-1 px-2 rounded" style="background: #f0f0f0;">
+                                <i class="bi bi-inbox me-2 text-muted"></i>
+                                <strong class="small text-muted">No Phase</strong>
+                                <span class="text-muted small ms-auto">{{ unphased_tasks|selectattr('completed')|list|length }}/{{ unphased_tasks|length }}</span>
+                            </div>
+                            {% endif %}
+                            {% for task in unphased_tasks %}
+                            <div class="d-flex align-items-start border-bottom pb-2 mb-2 task-item {% if task.completed %}task-completed{% endif %} {% if phases %}ps-3{% endif %}">
+                                <div class="form-check me-2">
+                                    <input class="form-check-input task-checkbox" type="checkbox"
+                                           data-task-id="{{ task.id }}"
+                                           {% if task.completed %}checked{% endif %}>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <p class="mb-1 {% if task.completed %}text-decoration-line-through text-muted{% endif %}">
+                                        {{ task.description }}
+                                        {% if task.assigned_to %}
+                                        <span class="badge bg-info ms-1"><i class="bi bi-person me-1"></i>{{ task.assigned_to.username }}</span>
+                                        {% endif %}
+                                    </p>
+                                    {% if task.deadline %}
+                                    <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
+                                        <i class="bi bi-calendar-event me-1"></i>{{ task.deadline|dateformat('%b %d, %Y') }}
+                                        {% if task.is_overdue %}
+                                        <span class="badge bg-danger ms-1">Overdue</span>
+                                        {% endif %}
+                                    </small>
+                                    {% endif %}
+                                </div>
+                                <div class="btn-group btn-group-sm ms-2">
+                                    <select class="form-select form-select-sm task-assign-select" data-task-id="{{ task.id }}" style="width: auto; font-size: 0.75rem;">
+                                        <option value="">Unassigned</option>
+                                        {% for dev in developers %}
+                                        <option value="{{ dev.id }}" {% if task.assigned_to_id == dev.id %}selected{% endif %}>{{ dev.username }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Delete this task?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     {% else %}
                         <div class="empty-state">
                             <i class="bi bi-check2-square"></i>
@@ -599,6 +732,170 @@
         {% endif %}
     </div>
 </div>
+<!-- Edit Project Info Modal -->
+{% if current_user.is_admin %}
+<div class="modal fade" id="editProjectInfoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit Project Info</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('update_project_info', project_id=project.id) }}">
+                <input type="hidden" name="redirect_to" value="dev">
+                <div class="modal-body">
+                    <!-- Project Details Section -->
+                    <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 0.05em;">Project Details</h6>
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label for="edit_name" class="form-label">Project Name</label>
+                            <input type="text" class="form-control" id="edit_name" name="name"
+                                   value="{{ project.name }}" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_project_type" class="form-label">Project Type</label>
+                            <select class="form-select" id="edit_project_type" name="project_type">
+                                <option value="External" {% if project.project_type == 'External' %}selected{% endif %}>External</option>
+                                <option value="Internal" {% if project.project_type == 'Internal' %}selected{% endif %}>Internal</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_description" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="edit_description" name="description"
+                               value="{{ project.description or '' }}" placeholder="Brief project description">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_client_id_dev" class="form-label">Client</label>
+                            <select class="form-select" id="edit_client_id_dev" name="client_id"
+                                    onchange="document.getElementById('newClientGroupDev').style.display = this.value === 'new' ? 'block' : 'none'">
+                                <option value="">-- No Client --</option>
+                                {% for c in clients %}
+                                <option value="{{ c.id }}" {% if project.client_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                                {% endfor %}
+                                <option value="new">+ Add New Client</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3" id="newClientGroupDev" style="display: none;">
+                            <label for="edit_new_client_name_dev" class="form-label">New Client Name</label>
+                            <input type="text" class="form-control" id="edit_new_client_name_dev" name="new_client_name"
+                                   placeholder="Enter client name">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_hours_budget" class="form-label">Hours Budget</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="edit_hours_budget" name="hours_budget"
+                                       step="0.5" min="0" value="{{ project.hours_budget }}">
+                                <span class="input-group-text">hrs</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="edit_start_date" name="start_date"
+                                   value="{{ project.start_date.strftime('%Y-%m-%d') if project.start_date else '' }}">
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Billing & Sales Section -->
+                    <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 0.05em;">Billing & Sales</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_billing_client" class="form-label">Billing Client</label>
+                            <input type="text" class="form-control" id="edit_billing_client" name="billing_client"
+                                   value="{{ project.billing_client or '' }}" placeholder="e.g., ESRI">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_billing_for" class="form-label">Work For</label>
+                            <input type="text" class="form-control" id="edit_billing_for" name="billing_for"
+                                   value="{{ project.billing_for or '' }}" placeholder="e.g., TCG">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_halo_link" class="form-label">Halo Sales Order / Opportunity Link</label>
+                        <input type="url" class="form-control" id="edit_halo_link" name="halo_link"
+                               value="{{ project.halo_link or '' }}" placeholder="https://...">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label for="edit_proposal_amount" class="form-label">Proposal Amount</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="edit_proposal_amount" name="proposal_amount"
+                                       step="0.01" min="0" value="{{ project.proposal_amount }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="edit_hourly_cost_rate" class="form-label">Hourly Cost Rate</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="edit_hourly_cost_rate" name="hourly_cost_rate"
+                                       step="0.01" min="0" value="{{ project.hourly_cost_rate }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Recurring Monthly?</label>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="edit_is_recurring_dev" name="is_recurring"
+                                       {% if project.is_recurring %}checked{% endif %}
+                                       onchange="document.getElementById('monthlyAmountGroupDev').style.display = this.checked ? 'block' : 'none'">
+                                <label class="form-check-label" for="edit_is_recurring_dev">Yes</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3" id="monthlyAmountGroupDev" style="display: {% if project.is_recurring %}block{% else %}none{% endif %};">
+                            <label for="edit_monthly_amount" class="form-label">Monthly Amount</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="edit_monthly_amount" name="monthly_amount"
+                                       step="0.01" min="0" value="{{ project.monthly_amount }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Monthly Support Section -->
+                    <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 0.05em;">Monthly Support</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_monthly_support_hours_dev" class="form-label">Support Hours / Month</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="edit_monthly_support_hours_dev" name="monthly_support_hours"
+                                       step="0.5" min="0" value="{{ project.monthly_support_hours }}">
+                                <span class="input-group-text">hrs</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_monthly_support_amount_dev" class="form-label">Support Amount / Month</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="edit_monthly_support_amount_dev" name="monthly_support_amount"
+                                       step="0.01" min="0" value="{{ project.monthly_support_amount }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-0">
+                        <label for="edit_project_notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="edit_project_notes" name="project_notes"
+                                  rows="3" placeholder="General notes about this project...">{{ project.project_notes or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}

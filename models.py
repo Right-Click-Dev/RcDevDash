@@ -1,7 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, date
 
 db = SQLAlchemy()
 
@@ -88,9 +88,11 @@ class Project(db.Model):
     project_notes = db.Column(db.Text)
     client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=True)
     start_date = db.Column(db.Date, nullable=True)
-    status = db.Column(db.String(20), default='active')  # active, archived
+    status = db.Column(db.String(20), default='active')  # active, on_hold, archived
     archived_at = db.Column(db.DateTime, nullable=True)
     hourly_cost_rate = db.Column(db.Float, default=0.0)
+    monthly_support_hours = db.Column(db.Float, default=0.0)
+    monthly_support_amount = db.Column(db.Float, default=0.0)
     proposal_file_path = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -133,9 +135,37 @@ class Project(db.Model):
         return sum(inv.amount for inv in self.invoices)
 
     @property
+    def monthly_support_months(self):
+        """Count how many 1st-of-month dates have passed since the start date"""
+        if not self.start_date or (self.monthly_support_hours == 0 and self.monthly_support_amount == 0):
+            return 0
+        today = date.today()
+        start = self.start_date
+        if start > today:
+            return 0
+        # Count months from start_date through today where the 1st has passed
+        months = (today.year - start.year) * 12 + (today.month - start.month)
+        # If start day is after the 1st, the first month's 1st hadn't occurred yet at start
+        if start.day > 1:
+            months = max(months, 0)
+        else:
+            months += 1  # Include the starting month since start is on or before the 1st
+        return max(months, 0)
+
+    @property
+    def monthly_support_hours_accrued(self):
+        """Total support hours accrued"""
+        return self.monthly_support_hours * self.monthly_support_months
+
+    @property
+    def monthly_support_amount_accrued(self):
+        """Total support $ accrued"""
+        return self.monthly_support_amount * self.monthly_support_months
+
+    @property
     def remaining_balance(self):
-        """Calculate remaining balance including uninvoiced expenses"""
-        return self.proposal_amount + self.total_uninvoiced_expenses - self.total_invoiced
+        """Calculate remaining balance including uninvoiced expenses and monthly support"""
+        return self.proposal_amount + self.total_uninvoiced_expenses + self.monthly_support_amount_accrued - self.total_invoiced
 
     @property
     def billing_display(self):
@@ -153,6 +183,11 @@ class Project(db.Model):
     def is_archived(self):
         """Check if project is archived"""
         return self.status == 'archived'
+
+    @property
+    def is_on_hold(self):
+        """Check if project is on hold"""
+        return self.status == 'on_hold'
 
     @property
     def total_expenses(self):
@@ -223,6 +258,7 @@ class Task(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    phase_id = db.Column(db.Integer, db.ForeignKey('phases.id'), nullable=True)
     description = db.Column(db.Text, nullable=False)
     deadline = db.Column(db.Date, nullable=True)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -232,6 +268,7 @@ class Task(db.Model):
 
     # Relationships
     assigned_to = db.relationship('User', backref='assigned_tasks', foreign_keys=[assigned_to_id])
+    phase = db.relationship('Phase', backref='tasks')
 
     def toggle_completed(self):
         """Toggle task completion status"""
