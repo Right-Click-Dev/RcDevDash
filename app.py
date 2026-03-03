@@ -598,12 +598,16 @@ def billing_dashboard():
     projects = base_query.order_by(Project.updated_at.desc()).all()
     clients = Client.query.order_by(Client.name).all()
 
-    # Group projects by client name
+    # Group projects by client name, sorted alphabetically (Unassigned last)
     from collections import OrderedDict
-    grouped = OrderedDict()
+    raw_grouped = {}
     for project in projects:
         client_name = project.client.name if project.client else 'Unassigned'
-        grouped.setdefault(client_name, []).append(project)
+        raw_grouped.setdefault(client_name, []).append(project)
+    sorted_keys = sorted((k for k in raw_grouped if k != 'Unassigned'), key=str.lower)
+    if 'Unassigned' in raw_grouped:
+        sorted_keys.append('Unassigned')
+    grouped = OrderedDict((k, raw_grouped[k]) for k in sorted_keys)
 
     return render_template('billing_dashboard.html', projects=projects, grouped_projects=grouped, clients=clients, show_archived=show_archived)
 
