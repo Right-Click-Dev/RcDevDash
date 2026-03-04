@@ -15,7 +15,8 @@
       "Bash(xargs grep -l \"billing\\\\|invoice\\\\|proposal_amount\")",
       "Bash(ls -la /c/Users/crsch/Desktop/Coding/UFC-AI/BidMock/RcDevDash/migrate*)",
       "Bash(grep -l \"user\\\\|rate\\\\|cost\" /c/Users/crsch/Desktop/Coding/UFC-AI/BidMock/RcDevDash/migrate*.py)",
-      "Bash(xargs grep -l \"task\")"
+      "Bash(xargs grep -l \"task\")",
+      "Bash(python migrate_user_rates.py)"
     ],
     "deny": [],
     "ask": []
