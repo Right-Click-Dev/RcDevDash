@@ -218,16 +218,21 @@ class Project(db.Model):
         return self.dev_cost + self.total_expenses
 
     @property
+    def total_revenue(self):
+        """Calculate total revenue (proposal amount + extensions)"""
+        return self.proposal_amount + self.total_extension_amount
+
+    @property
     def profit(self):
         """Calculate profit (revenue - dev cost - expenses)"""
-        return self.proposal_amount - self.dev_cost - self.total_expenses
+        return self.total_revenue - self.dev_cost - self.total_expenses
 
     @property
     def profit_margin(self):
         """Calculate profit margin percentage"""
-        if self.proposal_amount == 0:
+        if self.total_revenue == 0:
             return 0
-        return (self.profit / self.proposal_amount) * 100
+        return (self.profit / self.total_revenue) * 100
 
     @property
     def current_phase(self):
