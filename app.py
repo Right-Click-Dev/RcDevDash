@@ -299,11 +299,13 @@ def add_work_item():
         # Parse work date
         work_date = datetime.strptime(work_date_str, '%Y-%m-%d') if work_date_str else datetime.utcnow()
 
+        created_by_id = request.form.get('created_by_id')
         work_item = WorkItem(
             project_id=project_id,
             description=description,
             hours=hours,
-            work_date=work_date
+            work_date=work_date,
+            created_by_id=int(created_by_id) if created_by_id else current_user.id
         )
         db.session.add(work_item)
         db.session.commit()
@@ -338,6 +340,8 @@ def edit_work_item(workitem_id):
         work_item.hours = hours
         if work_date_str:
             work_item.work_date = datetime.strptime(work_date_str, '%Y-%m-%d')
+        created_by_id = request.form.get('created_by_id')
+        work_item.created_by_id = int(created_by_id) if created_by_id else None
 
         db.session.commit()
         flash('Work item updated successfully!', 'success')

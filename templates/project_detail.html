@@ -410,13 +410,21 @@
                         </div>
 
                         <div class="row">
-                            <div class="col-md-6 mb-2">
+                            <div class="col-md-4 mb-2">
                                 <label for="hours" class="form-label small">Hours *</label>
                                 <input type="number" class="form-control form-control-sm" id="hours" name="hours" step="0.25" min="0.25" required>
                             </div>
-                            <div class="col-md-6 mb-2">
+                            <div class="col-md-4 mb-2">
                                 <label for="work_date" class="form-label small">Date</label>
                                 <input type="date" class="form-control form-control-sm" id="work_date" name="work_date" value="{{ now.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="created_by_id" class="form-label small">User</label>
+                                <select class="form-select form-select-sm" id="created_by_id" name="created_by_id">
+                                    {% for dev in developers %}
+                                    <option value="{{ dev.id }}" {% if dev.id == current_user.id %}selected{% endif %}>{{ dev.username }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                         </div>
 
@@ -435,6 +443,11 @@
                                 <div class="flex-grow-1">
                                     <small class="text-muted">{{ item.work_date|datetimeformat('%b %d, %Y') }}</small>
                                     <span class="badge bg-primary ms-2">{{ "%.2f"|format(item.hours) }} hrs</span>
+                                    {% if item.created_by %}
+                                    <span class="badge bg-secondary ms-1">{{ item.created_by.username }}</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-muted ms-1">Unassigned</span>
+                                    {% endif %}
                                     <p class="mb-0 mt-1">{{ item.description }}</p>
                                 </div>
                                 {% if current_user.is_admin %}
@@ -473,15 +486,24 @@
                                                           name="description" rows="3" required>{{ item.description }}</textarea>
                                             </div>
                                             <div class="row">
-                                                <div class="col-md-6 mb-3">
+                                                <div class="col-md-4 mb-3">
                                                     <label for="edit_hours{{ item.id }}" class="form-label">Hours *</label>
                                                     <input type="number" class="form-control" id="edit_hours{{ item.id }}"
                                                            name="hours" step="0.25" min="0.25" value="{{ item.hours }}" required>
                                                 </div>
-                                                <div class="col-md-6 mb-3">
+                                                <div class="col-md-4 mb-3">
                                                     <label for="edit_work_date{{ item.id }}" class="form-label">Date</label>
                                                     <input type="date" class="form-control" id="edit_work_date{{ item.id }}"
                                                            name="work_date" value="{{ item.work_date.strftime('%Y-%m-%d') }}">
+                                                </div>
+                                                <div class="col-md-4 mb-3">
+                                                    <label for="edit_created_by{{ item.id }}" class="form-label">User</label>
+                                                    <select class="form-select" id="edit_created_by{{ item.id }}" name="created_by_id">
+                                                        <option value="">Unassigned</option>
+                                                        {% for dev in developers %}
+                                                        <option value="{{ dev.id }}" {% if item.created_by_id == dev.id %}selected{% endif %}>{{ dev.username }}</option>
+                                                        {% endfor %}
+                                                    </select>
                                                 </div>
                                             </div>
                                         </div>
