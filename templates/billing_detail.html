@@ -130,19 +130,13 @@
             </div>
             <div class="card-body">
                 <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Proposal Amount:</span>
+                    <span class="text-muted">Project Value:</span>
                     <span class="fw-bold fs-5">${{ "{:,.2f}".format(project.proposal_amount) }}</span>
                 </div>
                 {% if project.total_extension_amount > 0 %}
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Extensions:</span>
                     <span class="fw-bold text-warning">+${{ "{:,.2f}".format(project.total_extension_amount) }}</span>
-                </div>
-                {% endif %}
-                {% if project.total_phase_amount > 0 %}
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Total Phase Value:</span>
-                    <span class="fw-bold">${{ "{:,.2f}".format(project.total_phase_amount) }}</span>
                 </div>
                 {% endif %}
                 <div class="d-flex justify-content-between mb-2">
