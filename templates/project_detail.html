@@ -599,6 +599,9 @@
                                             <option value="{{ dev.id }}" {% if task.assigned_to_id == dev.id %}selected{% endif %}>{{ dev.username }}</option>
                                             {% endfor %}
                                         </select>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#adminEditTaskModal{{ task.id }}">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
                                         <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Delete this task?');">
                                             <button type="submit" class="btn btn-sm btn-outline-danger">
                                                 <i class="bi bi-trash"></i>
@@ -651,6 +654,9 @@
                                         <option value="{{ dev.id }}" {% if task.assigned_to_id == dev.id %}selected{% endif %}>{{ dev.username }}</option>
                                         {% endfor %}
                                     </select>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#adminEditTaskModal{{ task.id }}">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
                                     <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Delete this task?');">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">
                                             <i class="bi bi-trash"></i>
@@ -681,6 +687,56 @@
         </div>
     </div>
 </div>
+
+<!-- Admin Edit Task Modals -->
+{% for task in tasks %}
+<div class="modal fade" id="adminEditTaskModal{{ task.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit Task</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin_edit_task', task_id=task.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="admin_edit_desc_{{ task.id }}" class="form-label">Description *</label>
+                        <input type="text" class="form-control" id="admin_edit_desc_{{ task.id }}" name="description" value="{{ task.description }}" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="admin_edit_deadline_{{ task.id }}" class="form-label">Deadline</label>
+                            <input type="date" class="form-control" id="admin_edit_deadline_{{ task.id }}" name="deadline" value="{{ task.deadline|dateformat('%Y-%m-%d') if task.deadline else '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="admin_edit_assign_{{ task.id }}" class="form-label">Assign To</label>
+                            <select class="form-select" id="admin_edit_assign_{{ task.id }}" name="assigned_to_id">
+                                <option value="">Unassigned</option>
+                                {% for dev in developers %}
+                                <option value="{{ dev.id }}" {% if task.assigned_to_id == dev.id %}selected{% endif %}>{{ dev.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="admin_edit_phase_{{ task.id }}" class="form-label">Phase</label>
+                            <select class="form-select" id="admin_edit_phase_{{ task.id }}" name="phase_id">
+                                <option value="">No Phase</option>
+                                {% for phase in phases %}
+                                <option value="{{ phase.id }}" {% if task.phase_id == phase.id %}selected{% endif %}>{{ phase.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
 
 <!-- Assign Developers Modal -->
 {% if current_user.is_admin %}

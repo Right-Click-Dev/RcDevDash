@@ -28,6 +28,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=True)
     role = db.Column(db.String(20), default=ROLE_ADMIN)
+    hourly_rate = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -209,8 +210,14 @@ class Project(db.Model):
 
     @property
     def dev_cost(self):
-        """Calculate development cost based on hours and cost rate"""
-        return self.hours_used * self.hourly_cost_rate
+        """Calculate development cost based on per-user rates, falling back to project rate"""
+        total = 0.0
+        for item in self.work_items:
+            if item.created_by and item.created_by.hourly_rate > 0:
+                total += item.hours * item.created_by.hourly_rate
+            else:
+                total += item.hours * self.hourly_cost_rate
+        return total
 
     @property
     def total_cost(self):

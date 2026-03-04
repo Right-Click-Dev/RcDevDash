@@ -12,7 +12,10 @@
       "Bash(python -c \":*)",
       "Bash(python -c \"from models import Expense, Project; print\\(''Models OK''\\); print\\(''Expense fields:'', [c.name for c in Expense.__table__.columns]\\); print\\(''Project.total_expenses:'', type\\(Project.total_expenses.fget\\)\\); print\\(''Project.total_cost:'', type\\(Project.total_cost.fget\\)\\)\")",
       "Bash(python -c \"from app import app; print\\(''App loads OK''\\)\")",
-      "Bash(xargs grep -l \"billing\\\\|invoice\\\\|proposal_amount\")"
+      "Bash(xargs grep -l \"billing\\\\|invoice\\\\|proposal_amount\")",
+      "Bash(ls -la /c/Users/crsch/Desktop/Coding/UFC-AI/BidMock/RcDevDash/migrate*)",
+      "Bash(grep -l \"user\\\\|rate\\\\|cost\" /c/Users/crsch/Desktop/Coding/UFC-AI/BidMock/RcDevDash/migrate*.py)",
+      "Bash(xargs grep -l \"task\")"
     ],
     "deny": [],
     "ask": []

@@ -499,6 +499,38 @@ def dev_edit_task(task_id):
         return redirect(url_for('dev_project_view', project_id=project_id))
 
 
+@app.route('/api/task/<int:task_id>/admin-edit', methods=['POST'])
+@admin_required
+def admin_edit_task(task_id):
+    """Edit a task (admin editing any task)"""
+    try:
+        task = Task.query.get_or_404(task_id)
+        project_id = task.project_id
+
+        description = request.form.get('description')
+        deadline_str = request.form.get('deadline')
+        assigned_to_id = request.form.get('assigned_to_id')
+        phase_id = request.form.get('phase_id')
+
+        if not description:
+            flash('Task description is required.', 'error')
+            return redirect(url_for('project_detail', project_id=project_id))
+
+        task.description = description
+        task.deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date() if deadline_str else None
+        task.assigned_to_id = int(assigned_to_id) if assigned_to_id else None
+        task.phase_id = int(phase_id) if phase_id else None
+
+        db.session.commit()
+        flash('Task updated successfully!', 'success')
+        return redirect(url_for('project_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating task: {str(e)}', 'error')
+        return redirect(url_for('project_detail', project_id=project_id))
+
+
 @app.route('/api/task/<int:task_id>/delete', methods=['POST'])
 @login_required
 def delete_task(task_id):
@@ -1698,7 +1730,8 @@ def create_user():
             flash(f'User "{username}" already exists.', 'error')
             return redirect(url_for('user_management'))
 
-        user = User(username=username, is_admin=is_admin, role=role)
+        hourly_rate = float(request.form.get('hourly_rate', 0) or 0)
+        user = User(username=username, is_admin=is_admin, role=role, hourly_rate=hourly_rate)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
@@ -1787,6 +1820,24 @@ def change_user_role(user_id):
     except Exception as e:
         db.session.rollback()
         flash(f'Error changing role: {str(e)}', 'error')
+        return redirect(url_for('user_management'))
+
+
+@app.route('/api/user/<int:user_id>/update-rate', methods=['POST'])
+@admin_required
+def update_user_rate(user_id):
+    try:
+        user = User.query.get_or_404(user_id)
+        hourly_rate = float(request.form.get('hourly_rate', 0) or 0)
+        user.hourly_rate = max(hourly_rate, 0)
+        db.session.commit()
+
+        flash(f'Hourly rate for "{user.username}" updated to ${user.hourly_rate:.2f}/hr.', 'success')
+        return redirect(url_for('user_management'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating rate: {str(e)}', 'error')
         return redirect(url_for('user_management'))
 
 

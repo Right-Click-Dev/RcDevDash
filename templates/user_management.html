@@ -23,6 +23,7 @@
                     <tr>
                         <th>Username</th>
                         <th>Role</th>
+                        <th>Rate</th>
                         <th>Created</th>
                         <th class="text-end">Actions</th>
                     </tr>
@@ -52,6 +53,13 @@
                             <span class="badge bg-primary"><i class="bi bi-code-slash me-1"></i>Developer</span>
                             {% endif %}
                         </td>
+                        <td>
+                            {% if user.hourly_rate > 0 %}
+                            <span class="fw-bold">${{ "{:,.2f}".format(user.hourly_rate) }}/hr</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
                         <td class="text-muted small">{{ user.created_at|datetimeformat('%b %d, %Y') }}</td>
                         <td class="text-end">
                             <div class="d-flex gap-1 justify-content-end">
@@ -60,6 +68,9 @@
                                     <i class="bi bi-person-gear"></i>
                                 </button>
                                 {% endif %}
+                                <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#editRateModal{{ user.id }}" title="Edit hourly rate">
+                                    <i class="bi bi-currency-dollar"></i>
+                                </button>
                                 <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ user.id }}" title="Reset password">
                                     <i class="bi bi-key"></i>
                                 </button>
@@ -113,6 +124,15 @@
                         <div class="form-text">
                             Admin: access to everything. Developer: dev dashboard only. Billing: billing dashboard only.
                         </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="hourly_rate" class="form-label">Hourly Rate</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="hourly_rate" name="hourly_rate" step="0.01" min="0" value="0" placeholder="0.00">
+                            <span class="input-group-text">/ hr</span>
+                        </div>
+                        <div class="form-text">Used for project cost calculations.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -215,5 +235,37 @@
     </div>
 </div>
 {% endif %}
+{% endfor %}
+
+<!-- Edit Rate Modals -->
+{% for user in users %}
+<div class="modal fade" id="editRateModal{{ user.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-currency-dollar me-1"></i> Edit Hourly Rate</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('update_user_rate', user_id=user.id) }}">
+                <div class="modal-body">
+                    <p>Set hourly rate for <strong>{{ user.username }}</strong>.</p>
+                    <div class="mb-3">
+                        <label for="hourly_rate_{{ user.id }}" class="form-label">Hourly Rate</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="hourly_rate_{{ user.id }}" name="hourly_rate" step="0.01" min="0" value="{{ user.hourly_rate }}">
+                            <span class="input-group-text">/ hr</span>
+                        </div>
+                        <div class="form-text">Used for project cost calculations instead of the project flat rate.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-save me-1"></i> Save Rate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endfor %}
 {% endblock %}
