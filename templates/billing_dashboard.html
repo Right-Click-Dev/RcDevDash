@@ -36,8 +36,8 @@
     </div>
     <div class="col-6 col-md-3">
         <div class="stat-card">
-            <div class="stat-label">Total Proposals</div>
-            <div class="stat-value">${{ "{:,.0f}".format(projects|sum(attribute='proposal_amount')) }}</div>
+            <div class="stat-label">Total Project Value</div>
+            <div class="stat-value">${{ "{:,.0f}".format(projects|sum(attribute='total_revenue')) }}</div>
         </div>
     </div>
     <div class="col-6 col-md-3">
@@ -78,7 +78,7 @@
                             <th>Phase</th>
                             <th class="text-center">% Complete</th>
                             <th>Halo</th>
-                            <th class="text-end">Proposal</th>
+                            <th class="text-end">Project Value</th>
                             <th class="text-end">Invoiced</th>
                             <th class="text-end">Remaining</th>
                             <th class="text-center">Recurring</th>
@@ -128,7 +128,7 @@
                                 <span class="text-muted">-</span>
                                 {% endif %}
                             </td>
-                            <td class="text-end">${{ "{:,.2f}".format(project.proposal_amount) }}</td>
+                            <td class="text-end">${{ "{:,.2f}".format(project.total_revenue) }}</td>
                             <td class="text-end text-primary fw-bold">${{ "{:,.2f}".format(project.total_invoiced) }}</td>
                             <td class="text-end fw-bold {% if project.remaining_balance < 0 %}text-danger{% elif project.remaining_balance == 0 and project.proposal_amount > 0 %}text-warning{% else %}text-success{% endif %}">
                                 ${{ "{:,.2f}".format(project.remaining_balance) }}
