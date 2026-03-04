@@ -54,6 +54,62 @@
     </div>
 </div>
 
+<!-- Ready to Invoice Banner -->
+{% if ready_to_invoice %}
+<div class="card border-success mb-4">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#readyToInvoice">
+        <h5 class="mb-0">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>Ready to Invoice — {{ ready_to_invoice|length }} Project{{ 's' if ready_to_invoice|length != 1 }}
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-success fs-6">
+                ${{ "{:,.0f}".format(ready_to_invoice|sum(attribute='phase_total') + ready_to_invoice|sum(attribute='expense_total')) }}
+            </span>
+            <i class="bi bi-chevron-down text-white"></i>
+        </div>
+    </div>
+    <div class="collapse show" id="readyToInvoice">
+        <div class="card-body p-0">
+            {% for item in ready_to_invoice %}
+            <div class="border-bottom p-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <a href="{{ url_for('billing_detail', project_id=item.project.id) }}" class="fw-bold text-decoration-none fs-5">
+                            {{ item.project.name }}
+                        </a>
+                        {% if item.project.client %}
+                        <span class="text-muted ms-2">{{ item.project.client.name }}</span>
+                        {% endif %}
+                    </div>
+                    <span class="badge bg-success fs-6">${{ "{:,.2f}".format(item.phase_total + item.expense_total) }}</span>
+                </div>
+                {% if item.phases %}
+                <div class="mb-1">
+                    <strong class="text-muted small">Completed Phases:</strong>
+                    {% for phase in item.phases %}
+                    <span class="badge bg-warning text-dark ms-1">
+                        {{ phase.name }} — ${{ "{:,.2f}".format(phase.amount) }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if item.expenses %}
+                <div>
+                    <strong class="text-muted small">Uninvoiced Expenses:</strong>
+                    {% for expense in item.expenses %}
+                    <span class="badge bg-info text-dark ms-1">
+                        {{ expense.description }} — ${{ "{:,.2f}".format(expense.amount) }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Projects Grouped by Client -->
 {% if projects %}
 {% for client_name, client_projects in grouped_projects.items() %}

@@ -436,6 +436,14 @@ class Phase(db.Model):
             return self.STATUSES[idx + 1]
         return None
 
+    @property
+    def prev_status(self):
+        """Get previous status in progression"""
+        idx = self.STATUSES.index(self.status)
+        if idx > 0:
+            return self.STATUSES[idx - 1]
+        return None
+
     def __repr__(self):
         return f'<Phase {self.name}>'
 

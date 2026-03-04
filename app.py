@@ -609,7 +609,21 @@ def billing_dashboard():
         sorted_keys.append('Unassigned')
     grouped = OrderedDict((k, raw_grouped[k]) for k in sorted_keys)
 
-    return render_template('billing_dashboard.html', projects=projects, grouped_projects=grouped, clients=clients, show_archived=show_archived)
+    # Build ready-to-invoice list: projects with completed (but not invoiced) phases or uninvoiced expenses
+    ready_to_invoice = []
+    for project in projects:
+        completed_phases = [p for p in project.phases if p.status == 'completed']
+        uninvoiced_expenses = [e for e in project.expenses if not e.invoiced]
+        if completed_phases or uninvoiced_expenses:
+            ready_to_invoice.append({
+                'project': project,
+                'phases': completed_phases,
+                'expenses': uninvoiced_expenses,
+                'phase_total': sum(p.amount for p in completed_phases),
+                'expense_total': sum(e.amount for e in uninvoiced_expenses),
+            })
+
+    return render_template('billing_dashboard.html', projects=projects, grouped_projects=grouped, clients=clients, show_archived=show_archived, ready_to_invoice=ready_to_invoice)
 
 
 @app.route('/billing/<int:project_id>')

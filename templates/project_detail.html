@@ -280,6 +280,15 @@
                         {% if current_user.is_admin %}
                         <td class="text-end">
                             <div class="btn-group btn-group-sm">
+                                {% if phase.prev_status %}
+                                <form method="POST" action="{{ url_for('update_phase_status', phase_id=phase.id) }}" class="d-inline">
+                                    <input type="hidden" name="status" value="{{ phase.prev_status }}">
+                                    <input type="hidden" name="redirect_to" value="dev">
+                                    <button type="submit" class="btn btn-outline-warning btn-sm" title="Revert to {{ phase.prev_status.replace('_', ' ').title() }}">
+                                        <i class="bi bi-arrow-left"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
                                 {% if phase.next_status %}
                                 <form method="POST" action="{{ url_for('update_phase_status', phase_id=phase.id) }}" class="d-inline">
                                     <input type="hidden" name="status" value="{{ phase.next_status }}">
