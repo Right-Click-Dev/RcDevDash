@@ -109,10 +109,12 @@ class Project(db.Model):
     monthly_support_hours = db.Column(db.Float, default=0.0)
     monthly_support_amount = db.Column(db.Float, default=0.0)
     proposal_file_path = db.Column(db.String(500), nullable=True)
+    poc_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    poc = db.relationship('User', foreign_keys=[poc_id], backref='poc_projects')
     work_items = db.relationship('WorkItem', backref='project', lazy=True, cascade='all, delete-orphan')
     tasks = db.relationship('Task', backref='project', lazy=True, cascade='all, delete-orphan')
     invoices = db.relationship('Invoice', backref='project', lazy=True, cascade='all, delete-orphan')

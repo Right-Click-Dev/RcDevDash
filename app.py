@@ -134,6 +134,7 @@ def check_support_phases():
             ("ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"),
             ("ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"),
             ("ALTER TABLE users ADD COLUMN hourly_rate FLOAT DEFAULT 0.0"),
+            ("ALTER TABLE projects ADD COLUMN poc_id INTEGER"),
         ]
         for sql in migrations:
             try:
@@ -162,14 +163,21 @@ def home():
     show_archived = request.args.get('show_archived', '0') == '1'
     clients = Client.query.order_by(Client.name).all()
 
-    # Developers and POC users only see projects they're assigned to
-    if current_user.role in (User.ROLE_DEVELOPER, User.ROLE_POC):
+    # Developers only see projects they're assigned to; POC sees projects where they are the POC
+    if current_user.role == User.ROLE_DEVELOPER:
         assigned = current_user.assigned_projects
         if not show_archived:
             assigned = [p for p in assigned if p.status != 'archived']
         external_projects = [p for p in assigned if p.project_type == 'External']
         internal_projects = [p for p in assigned if p.project_type == 'Internal']
-        leads = []  # Non-admin users don't manage leads
+        leads = []
+    elif current_user.role == User.ROLE_POC:
+        assigned = Project.query.filter_by(poc_id=current_user.id).all()
+        if not show_archived:
+            assigned = [p for p in assigned if p.status != 'archived']
+        external_projects = [p for p in assigned if p.project_type == 'External']
+        internal_projects = [p for p in assigned if p.project_type == 'Internal']
+        leads = []
     else:
         base_query = Project.query
         if not show_archived:
@@ -189,11 +197,12 @@ def home():
         sorted_keys.append('Unassigned')
     grouped_external = OrderedDict((k, raw_grouped[k]) for k in sorted_keys)
 
-    # Group external projects by assigned developer
+    # Group external projects by assigned developer (exclude POC users)
     dev_grouped = {}
     for project in external_projects:
-        if project.assigned_developers:
-            for dev in project.assigned_developers:
+        actual_devs = [d for d in project.assigned_developers if d.role != User.ROLE_POC]
+        if actual_devs:
+            for dev in actual_devs:
                 dev_grouped.setdefault(dev.username, []).append(project)
         else:
             dev_grouped.setdefault('Unassigned', []).append(project)
@@ -206,7 +215,7 @@ def home():
     from datetime import date as date_cls
     today = date_cls.today()
     month_start = datetime(today.year, today.month, 1)
-    developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN, User.ROLE_POC])).all()
+    developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN])).all()
     dev_mtd_hours = {}
     for dev in developers:
         mtd = db.session.query(db.func.coalesce(db.func.sum(WorkItem.hours), 0.0)).filter(
@@ -230,18 +239,19 @@ def project_detail(project_id):
     if current_user.role == User.ROLE_DEVELOPER:
         return redirect(url_for('dev_project_view', project_id=project_id))
 
-    # POC users can only view projects they're assigned to
-    if current_user.is_poc and project not in current_user.assigned_projects:
+    # POC users can only view projects where they are the POC
+    if current_user.is_poc and project.poc_id != current_user.id:
         abort(403)
 
     work_items = WorkItem.query.filter_by(project_id=project_id).order_by(WorkItem.work_date.desc()).all()
     tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.deadline).all()
-    developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN, User.ROLE_POC])).order_by(User.username).all()
+    developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN])).order_by(User.username).all()
+    poc_users = User.query.filter_by(role=User.ROLE_POC).order_by(User.username).all()
     dev_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='dev').order_by(ProjectComment.created_at.desc()).all()
     phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
     clients = Client.query.order_by(Client.name).all()
     return render_template('project_detail.html', project=project, work_items=work_items, tasks=tasks,
-                           developers=developers, comments=dev_comments, phases=phases, clients=clients, now=datetime.now())
+                           developers=developers, poc_users=poc_users, comments=dev_comments, phases=phases, clients=clients, now=datetime.now())
 
 
 @app.route('/api/project/create', methods=['POST'])
@@ -646,6 +656,26 @@ def assign_developers(project_id):
     except Exception as e:
         db.session.rollback()
         flash(f'Error updating assignments: {str(e)}', 'error')
+        return redirect(url_for('project_detail', project_id=project_id))
+
+
+@app.route('/api/project/<int:project_id>/assign-poc', methods=['POST'])
+@admin_required
+def assign_poc(project_id):
+    """Assign a POC user to a project"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        poc_id = request.form.get('poc_id')
+        project.poc_id = int(poc_id) if poc_id else None
+        db.session.commit()
+        if project.poc:
+            flash(f'POC set to "{project.poc.username}" for "{project.name}".', 'success')
+        else:
+            flash(f'POC removed from "{project.name}".', 'success')
+        return redirect(url_for('project_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating POC: {str(e)}', 'error')
         return redirect(url_for('project_detail', project_id=project_id))
 
 
@@ -1970,6 +2000,7 @@ def init_db_command():
         ("tasks", "is_support", "ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"),
         ("work_items", "is_support", "ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"),
         ("users", "hourly_rate", "ALTER TABLE users ADD COLUMN hourly_rate FLOAT DEFAULT 0.0"),
+        ("projects", "poc_id", "ALTER TABLE projects ADD COLUMN poc_id INTEGER"),
     ]
     for table, col, sql in migrations:
         try:

@@ -189,14 +189,34 @@
             </button>
             {% endif %}
         </div>
-        {% if project.assigned_developers %}
+        {% set actual_devs = project.assigned_developers | selectattr('role', 'ne', 'poc') | list %}
+        {% if actual_devs %}
         <div class="d-flex flex-wrap gap-1">
-            {% for dev in project.assigned_developers %}
+            {% for dev in actual_devs %}
             <span class="badge bg-primary"><i class="bi bi-person me-1"></i>{{ dev.username }}</span>
             {% endfor %}
         </div>
         {% else %}
         <p class="text-muted mb-0 small">No developers assigned yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Assigned POC Card -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="card-title mb-0"><i class="bi bi-person-badge me-1"></i> Assigned POC</h5>
+            {% if current_user.is_admin %}
+            <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#assignPocModal">
+                <i class="bi bi-person-check me-1"></i> Manage
+            </button>
+            {% endif %}
+        </div>
+        {% if project.poc %}
+        <span class="badge bg-info"><i class="bi bi-person-badge me-1"></i>{{ project.poc.username }}</span>
+        {% else %}
+        <p class="text-muted mb-0 small">No POC assigned yet.</p>
         {% endif %}
     </div>
 </div>
@@ -814,6 +834,35 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Assign POC Modal -->
+<div class="modal fade" id="assignPocModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-person-badge me-1"></i> Assign POC</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('assign_poc', project_id=project.id) }}">
+                <div class="modal-body">
+                    <p class="text-muted small">Select a POC for this project:</p>
+                    <select class="form-select" name="poc_id">
+                        <option value="">-- No POC --</option>
+                        {% for poc in poc_users %}
+                        <option value="{{ poc.id }}" {% if project.poc_id == poc.id %}selected{% endif %}>
+                            {{ poc.username }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info"><i class="bi bi-save me-1"></i> Save</button>
                 </div>
             </form>
         </div>
