@@ -129,17 +129,18 @@ def check_support_phases():
     global _support_phases_checked, _db_migrated
     if not _db_migrated:
         _db_migrated = True
-        try:
-            with db.engine.connect() as conn:
-                task_cols = [row[1] for row in conn.execute(db.text("PRAGMA table_info(tasks)"))]
-                if 'is_support' not in task_cols:
-                    conn.execute(db.text("ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"))
-                wi_cols = [row[1] for row in conn.execute(db.text("PRAGMA table_info(work_items)"))]
-                if 'is_support' not in wi_cols:
-                    conn.execute(db.text("ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"))
-                conn.commit()
-        except Exception:
-            pass
+        # Auto-add missing columns (works for both SQLite and MySQL)
+        migrations = [
+            ("ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"),
+            ("ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"),
+            ("ALTER TABLE users ADD COLUMN hourly_rate FLOAT DEFAULT 0.0"),
+        ]
+        for sql in migrations:
+            try:
+                db.session.execute(db.text(sql))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
     today = date.today()
     if _support_phases_checked == today:
         return
@@ -1964,15 +1965,23 @@ def create_user_command():
 def init_db_command():
     """Initialize the database with tables"""
     db.create_all()
-    # Add new columns to existing tables if missing
-    with db.engine.connect() as conn:
-        task_cols = [row[1] for row in conn.execute(db.text("PRAGMA table_info(tasks)"))]
-        if 'is_support' not in task_cols:
-            conn.execute(db.text("ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"))
-        wi_cols = [row[1] for row in conn.execute(db.text("PRAGMA table_info(work_items)"))]
-        if 'is_support' not in wi_cols:
-            conn.execute(db.text("ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"))
-        conn.commit()
+    # Add new columns to existing tables if missing (works for both SQLite and MySQL)
+    migrations = [
+        ("tasks", "is_support", "ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"),
+        ("work_items", "is_support", "ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"),
+        ("users", "hourly_rate", "ALTER TABLE users ADD COLUMN hourly_rate FLOAT DEFAULT 0.0"),
+    ]
+    for table, col, sql in migrations:
+        try:
+            db.session.execute(db.text(sql))
+            db.session.commit()
+            print(f'  + Added {table}.{col}')
+        except Exception as e:
+            db.session.rollback()
+            if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
+                print(f'  = {table}.{col} already exists')
+            else:
+                print(f'  ! Error adding {table}.{col}: {e}')
     print('Database initialized!')
 
 
