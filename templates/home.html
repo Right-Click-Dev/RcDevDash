@@ -36,43 +36,53 @@
 
 <!-- Leads Section (hidden for developers) -->
 {% if current_user.role != 'developer' %}
-<div class="section-title"><i class="bi bi-lightbulb"></i> Leads</div>
 {% if leads %}
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 mb-5">
-    {% for lead in leads %}
-    <div class="col searchable-card">
-        <div class="card h-100 lead-card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h5 class="card-title mb-0">
-                        <a href="{{ url_for('lead_detail', lead_id=lead.id) }}" class="text-decoration-none text-dark">
-                            {{ lead.name }}
-                        </a>
-                    </h5>
-                    <span class="badge bg-{{ 'success' if lead.status == 'Qualified' else 'warning' if lead.status == 'Contacted' else 'info' if lead.status == 'New' else 'secondary' }}">
-                        {{ lead.status }}
-                    </span>
-                </div>
+<div class="card mb-4 searchable-group">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#leads-group">
+        <h5 class="mb-0">
+            <i class="bi bi-lightbulb me-1"></i> Leads
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-dark">{{ leads|length }} lead{{ 's' if leads|length != 1 }}</span>
+            <i class="bi bi-chevron-down"></i>
+        </div>
+    </div>
+    <div class="collapse" id="leads-group">
+        <div class="card-body">
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+                {% for lead in leads %}
+                <div class="col searchable-card">
+                    <div class="card h-100 lead-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title mb-0">
+                                    <a href="{{ url_for('lead_detail', lead_id=lead.id) }}" class="text-decoration-none text-dark">
+                                        {{ lead.name }}
+                                    </a>
+                                </h5>
+                                <span class="badge bg-{{ 'success' if lead.status == 'Qualified' else 'warning' if lead.status == 'Contacted' else 'info' if lead.status == 'New' else 'secondary' }}">
+                                    {{ lead.status }}
+                                </span>
+                            </div>
 
-                {% if lead.description %}
-                <p class="card-text text-muted small mb-3">{{ lead.description[:100] }}{% if lead.description|length > 100 %}...{% endif %}</p>
-                {% endif %}
+                            {% if lead.description %}
+                            <p class="card-text text-muted small mb-3">{{ lead.description[:100] }}{% if lead.description|length > 100 %}...{% endif %}</p>
+                            {% endif %}
 
-                <div class="d-flex justify-content-between align-items-center text-muted small">
-                    <span><i class="bi bi-clock me-1"></i>Est. {{ "%.0f"|format(lead.estimated_hours) }} hrs</span>
-                    <span><i class="bi bi-check2-square me-1"></i>{{ lead.tasks|selectattr('completed')|list|length }}/{{ lead.tasks|length }} tasks</span>
+                            <div class="d-flex justify-content-between align-items-center text-muted small">
+                                <span><i class="bi bi-clock me-1"></i>Est. {{ "%.0f"|format(lead.estimated_hours) }} hrs</span>
+                                <span><i class="bi bi-check2-square me-1"></i>{{ lead.tasks|selectattr('completed')|list|length }}/{{ lead.tasks|length }} tasks</span>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <small class="text-muted">Created {{ lead.created_at|datetimeformat('%b %d, %Y') }}</small>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div class="card-footer">
-                <small class="text-muted">Created {{ lead.created_at|datetimeformat('%b %d, %Y') }}</small>
+                {% endfor %}
             </div>
         </div>
     </div>
-    {% endfor %}
-</div>
-{% else %}
-<div class="alert alert-info mb-5">
-    <i class="bi bi-info-circle me-1"></i> No leads yet. Create one to track potential projects!
 </div>
 {% endif %}
 {% endif %}
@@ -93,7 +103,7 @@
             <i class="bi bi-chevron-down"></i>
         </div>
     </div>
-    <div class="collapse show" id="dev-client-{{ loop.index }}">
+    <div class="collapse" id="dev-client-{{ loop.index }}">
         <div class="card-body">
             <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
                 {% for project in client_projects %}
@@ -180,86 +190,91 @@
 {% endif %}
 
 <!-- Internal Projects Section -->
-<div class="section-title mt-4"><i class="bi bi-building"></i> Internal Projects</div>
-
 {% if internal_projects %}
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
-    {% for project in internal_projects %}
-    <div class="col searchable-card">
-        <div class="card h-100 project-card {% if project.is_over_budget %}border-danger{% endif %} {% if project.is_archived or project.is_on_hold %}opacity-75{% endif %}">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h5 class="card-title mb-0">
-                        <a href="{{ url_for('project_detail', project_id=project.id) }}" class="text-decoration-none text-dark">
-                            {{ project.name }}
-                        </a>
-                    </h5>
-                    <div class="d-flex gap-1">
-                        {% if project.is_archived %}
-                        <span class="badge bg-secondary">Archived</span>
-                        {% elif project.is_on_hold %}
-                        <span class="badge bg-warning text-dark">On Hold</span>
-                        {% endif %}
-                        {% if project.is_over_budget %}
-                        <span class="badge bg-danger">Over Budget</span>
-                        {% endif %}
+<div class="card mb-4 searchable-group">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#internal-group">
+        <h5 class="mb-0">
+            <i class="bi bi-building me-1"></i> Internal Projects
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-dark">{{ internal_projects|length }} project{{ 's' if internal_projects|length != 1 }}</span>
+            <i class="bi bi-chevron-down"></i>
+        </div>
+    </div>
+    <div class="collapse" id="internal-group">
+        <div class="card-body">
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+                {% for project in internal_projects %}
+                <div class="col searchable-card">
+                    <div class="card h-100 project-card {% if project.is_over_budget %}border-danger{% endif %} {% if project.is_archived or project.is_on_hold %}opacity-75{% endif %}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title mb-0">
+                                    <a href="{{ url_for('project_detail', project_id=project.id) }}" class="text-decoration-none text-dark">
+                                        {{ project.name }}
+                                    </a>
+                                </h5>
+                                <div class="d-flex gap-1">
+                                    {% if project.is_archived %}
+                                    <span class="badge bg-secondary">Archived</span>
+                                    {% elif project.is_on_hold %}
+                                    <span class="badge bg-warning text-dark">On Hold</span>
+                                    {% endif %}
+                                    {% if project.is_over_budget %}
+                                    <span class="badge bg-danger">Over Budget</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            {% if project.description %}
+                            <p class="card-text text-muted small mb-3">{{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}</p>
+                            {% endif %}
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small text-muted">Hours</span>
+                                <span class="fw-bold small {% if project.is_over_budget %}text-danger{% else %}text-info{% endif %}">
+                                    {{ "%.1f"|format(project.hours_used) }} / {{ "%.1f"|format(project.hours_budget) }}
+                                </span>
+                            </div>
+
+                            <div class="progress mb-2" style="height: 8px;">
+                                <div class="progress-bar {% if project.is_over_budget %}bg-danger{% else %}bg-info{% endif %}"
+                                     role="progressbar" style="width: {{ project.progress_percentage }}%"></div>
+                            </div>
+
+                            {% if project.hours_remaining > 0 %}
+                            <small class="text-success">{{ "%.1f"|format(project.hours_remaining) }} hrs remaining</small>
+                            {% elif project.hours_remaining < 0 %}
+                            <small class="text-danger">{{ "%.1f"|format(-project.hours_remaining) }} hrs over</small>
+                            {% else %}
+                            <small class="text-warning">Budget fully used</small>
+                            {% endif %}
+
+                            <div class="mt-3 pt-3 border-top">
+                                <div class="d-flex justify-content-between text-muted small">
+                                    {% if current_user.role == 'developer' %}
+                                    <span><i class="bi bi-person-check me-1"></i>{{ project.task_count_for_user(current_user.id) }} tasks assigned</span>
+                                    {% else %}
+                                    <span><i class="bi bi-clock me-1"></i>{{ project.work_items|length }} work items</span>
+                                    <span><i class="bi bi-check2-square me-1"></i>{{ project.tasks|selectattr('completed')|list|length }}/{{ project.tasks|length }} tasks</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <a href="{{ url_for('project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-arrow-right me-1"></i> Open
+                                </a>
+                                <small class="text-muted">{{ project.updated_at|datetimeformat('%b %d') }}</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                {% if project.description %}
-                <p class="card-text text-muted small mb-3">{{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}</p>
-                {% endif %}
-
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="small text-muted">Hours</span>
-                    <span class="fw-bold small {% if project.is_over_budget %}text-danger{% else %}text-info{% endif %}">
-                        {{ "%.1f"|format(project.hours_used) }} / {{ "%.1f"|format(project.hours_budget) }}
-                    </span>
-                </div>
-
-                <div class="progress mb-2" style="height: 8px;">
-                    <div class="progress-bar {% if project.is_over_budget %}bg-danger{% else %}bg-info{% endif %}"
-                         role="progressbar" style="width: {{ project.progress_percentage }}%"></div>
-                </div>
-
-                {% if project.hours_remaining > 0 %}
-                <small class="text-success">{{ "%.1f"|format(project.hours_remaining) }} hrs remaining</small>
-                {% elif project.hours_remaining < 0 %}
-                <small class="text-danger">{{ "%.1f"|format(-project.hours_remaining) }} hrs over</small>
-                {% else %}
-                <small class="text-warning">Budget fully used</small>
-                {% endif %}
-
-                <div class="mt-3 pt-3 border-top">
-                    <div class="d-flex justify-content-between text-muted small">
-                        {% if current_user.role == 'developer' %}
-                        <span><i class="bi bi-person-check me-1"></i>{{ project.task_count_for_user(current_user.id) }} tasks assigned</span>
-                        {% else %}
-                        <span><i class="bi bi-clock me-1"></i>{{ project.work_items|length }} work items</span>
-                        <span><i class="bi bi-check2-square me-1"></i>{{ project.tasks|selectattr('completed')|list|length }}/{{ project.tasks|length }} tasks</span>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            <div class="card-footer">
-                <div class="d-flex justify-content-between align-items-center">
-                    <a href="{{ url_for('project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-info">
-                        <i class="bi bi-arrow-right me-1"></i> Open
-                    </a>
-                    <small class="text-muted">{{ project.updated_at|datetimeformat('%b %d') }}</small>
-                </div>
+                {% endfor %}
             </div>
         </div>
     </div>
-    {% endfor %}
-</div>
-{% else %}
-<div class="alert alert-info">
-    {% if current_user.role == 'developer' %}
-    <i class="bi bi-info-circle me-1"></i> No internal projects assigned to you yet.
-    {% else %}
-    <i class="bi bi-info-circle me-1"></i> No internal projects yet.
-    {% endif %}
 </div>
 {% endif %}
 
