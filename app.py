@@ -163,8 +163,19 @@ def home():
         internal_projects = base_query.filter_by(project_type='Internal').order_by(Project.updated_at.desc()).all()
         leads = Lead.query.order_by(Lead.updated_at.desc()).all()
 
-    return render_template('home.html', external_projects=external_projects, internal_projects=internal_projects,
-                           leads=leads, clients=clients, show_archived=show_archived)
+    # Group external projects by client name, sorted alphabetically (Unassigned last)
+    from collections import OrderedDict
+    raw_grouped = {}
+    for project in external_projects:
+        client_name = project.client.name if project.client else 'Unassigned'
+        raw_grouped.setdefault(client_name, []).append(project)
+    sorted_keys = sorted((k for k in raw_grouped if k != 'Unassigned'), key=str.lower)
+    if 'Unassigned' in raw_grouped:
+        sorted_keys.append('Unassigned')
+    grouped_external = OrderedDict((k, raw_grouped[k]) for k in sorted_keys)
+
+    return render_template('home.html', external_projects=external_projects, grouped_external=grouped_external,
+                           internal_projects=internal_projects, leads=leads, clients=clients, show_archived=show_archived)
 
 
 @app.route('/project/<int:project_id>')
