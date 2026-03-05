@@ -87,17 +87,116 @@
 {% endif %}
 {% endif %}
 
-<!-- External Projects Section -->
-<div class="section-title"><i class="bi bi-kanban"></i> External Projects</div>
+<!-- External Projects by Developer -->
+<div class="section-title"><i class="bi bi-people"></i> External Projects by Developer</div>
 
 {% if external_projects %}
+{% for dev_name, dev_projects in grouped_by_dev.items() %}
+<div class="card mb-3 searchable-group">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#dev-group-{{ loop.index }}">
+        <h5 class="mb-0">
+            <i class="bi bi-person-fill me-1"></i> {{ dev_name }}
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-dark">{{ dev_projects|length }} project{{ 's' if dev_projects|length != 1 }}</span>
+            <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>{{ dev_mtd_hours.get(dev_name, 0) }} hrs MTD</span>
+            <i class="bi bi-chevron-down"></i>
+        </div>
+    </div>
+    <div class="collapse" id="dev-group-{{ loop.index }}">
+        <div class="card-body">
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+                {% for project in dev_projects %}
+                <div class="col searchable-card">
+                    <div class="card h-100 project-card {% if project.is_over_budget %}border-danger{% endif %} {% if project.is_archived or project.is_on_hold %}opacity-75{% endif %}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title mb-0">
+                                    <a href="{{ url_for('project_detail', project_id=project.id) }}" class="text-decoration-none text-dark">
+                                        {{ project.name }}
+                                    </a>
+                                </h5>
+                                <div class="d-flex gap-1">
+                                    {% if project.is_archived %}
+                                    <span class="badge bg-secondary">Archived</span>
+                                    {% elif project.is_on_hold %}
+                                    <span class="badge bg-warning text-dark">On Hold</span>
+                                    {% endif %}
+                                    {% if project.is_over_budget %}
+                                    <span class="badge bg-danger">Over Budget</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            {% if project.client %}
+                            <small class="text-muted d-block mb-1"><i class="bi bi-building me-1"></i>{{ project.client.name }}</small>
+                            {% endif %}
+
+                            {% if project.description %}
+                            <p class="card-text text-muted small mb-3">{{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}</p>
+                            {% endif %}
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small text-muted">Hours</span>
+                                <span class="fw-bold small {% if project.is_over_budget %}text-danger{% else %}text-primary{% endif %}">
+                                    {{ "%.1f"|format(project.hours_used) }} / {{ "%.1f"|format(project.hours_budget) }}
+                                </span>
+                            </div>
+
+                            <div class="progress mb-2" style="height: 8px;">
+                                <div class="progress-bar {% if project.is_over_budget %}bg-danger{% else %}bg-primary{% endif %}"
+                                     role="progressbar" style="width: {{ project.progress_percentage }}%"></div>
+                            </div>
+
+                            {% if project.hours_remaining > 0 %}
+                            <small class="text-success">{{ "%.1f"|format(project.hours_remaining) }} hrs remaining</small>
+                            {% elif project.hours_remaining < 0 %}
+                            <small class="text-danger">{{ "%.1f"|format(-project.hours_remaining) }} hrs over</small>
+                            {% else %}
+                            <small class="text-warning">Budget fully used</small>
+                            {% endif %}
+
+                            <div class="mt-3 pt-3 border-top">
+                                <div class="d-flex justify-content-between text-muted small">
+                                    <span><i class="bi bi-clock me-1"></i>{{ project.work_items|length }} work items</span>
+                                    <span><i class="bi bi-check2-square me-1"></i>{{ project.tasks|selectattr('completed')|list|length }}/{{ project.tasks|length }} tasks</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <a href="{{ url_for('project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-arrow-right me-1"></i> Open
+                                </a>
+                                <small class="text-muted">{{ project.updated_at|datetimeformat('%b %d') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- External Projects by Company -->
+<div class="section-title mt-4"><i class="bi bi-kanban"></i> External Projects by Company</div>
+
 {% for client_name, client_projects in grouped_external.items() %}
-<div class="card mb-4 client-group searchable-group">
+{% set all_on_hold = client_projects|selectattr('is_on_hold')|list|length == client_projects|length %}
+<div class="card mb-3 client-group searchable-group">
     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#dev-client-{{ loop.index }}">
         <h5 class="mb-0">
             <i class="bi bi-building me-1"></i> {{ client_name }}
+            {% if all_on_hold %}
+            <i class="bi bi-pause-circle-fill text-warning ms-2" title="All projects on hold"></i>
+            {% endif %}
         </h5>
         <div class="d-flex align-items-center gap-2">
+            {% if all_on_hold %}
+            <span class="badge bg-warning text-dark">On Hold</span>
+            {% endif %}
             <span class="badge bg-secondary">{{ client_projects|length }} project{{ 's' if client_projects|length != 1 }}</span>
             <span class="badge bg-primary">{{ "%.0f"|format(client_projects|sum(attribute='hours_used')) }} / {{ "%.0f"|format(client_projects|sum(attribute='hours_budget')) }} hrs</span>
             <i class="bi bi-chevron-down"></i>
@@ -154,12 +253,8 @@
 
                             <div class="mt-3 pt-3 border-top">
                                 <div class="d-flex justify-content-between text-muted small">
-                                    {% if current_user.role == 'developer' %}
-                                    <span><i class="bi bi-person-check me-1"></i>{{ project.task_count_for_user(current_user.id) }} tasks assigned</span>
-                                    {% else %}
                                     <span><i class="bi bi-clock me-1"></i>{{ project.work_items|length }} work items</span>
                                     <span><i class="bi bi-check2-square me-1"></i>{{ project.tasks|selectattr('completed')|list|length }}/{{ project.tasks|length }} tasks</span>
-                                    {% endif %}
                                 </div>
                             </div>
                         </div>

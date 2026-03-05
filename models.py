@@ -263,6 +263,21 @@ class Project(db.Model):
         """Count of completed tasks"""
         return sum(1 for t in self.tasks if t.completed)
 
+    @property
+    def support_tasks_count(self):
+        """Count of tasks marked as support"""
+        return sum(1 for t in self.tasks if t.is_support)
+
+    @property
+    def support_tasks_completed_count(self):
+        """Count of completed support tasks"""
+        return sum(1 for t in self.tasks if t.is_support and t.completed)
+
+    @property
+    def support_hours_used(self):
+        """Calculate hours logged as support work"""
+        return sum(wi.hours for wi in self.work_items if wi.is_support)
+
     def tasks_for_user(self, user_id):
         """Return tasks assigned to a specific user"""
         return [t for t in self.tasks if t.assigned_to_id == user_id]
@@ -285,6 +300,7 @@ class WorkItem(db.Model):
     hours = db.Column(db.Float, nullable=False)
     work_date = db.Column(db.DateTime, default=datetime.utcnow)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    is_support = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -306,6 +322,7 @@ class Task(db.Model):
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     completed = db.Column(db.Boolean, default=False)
     completed_at = db.Column(db.DateTime, nullable=True)
+    is_support = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships

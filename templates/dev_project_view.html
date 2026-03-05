@@ -135,6 +135,9 @@
                         <div class="flex-grow-1">
                             <p class="mb-1 {% if task.completed %}text-decoration-line-through text-muted{% endif %}">
                                 {{ task.description }}
+                                {% if task.is_support %}
+                                <span class="badge bg-warning text-dark ms-1"><i class="bi bi-headset me-1"></i>Support</span>
+                                {% endif %}
                             </p>
                             {% if task.deadline %}
                             <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
@@ -177,6 +180,9 @@
                     <div class="flex-grow-1">
                         <p class="mb-1 {% if task.completed %}text-decoration-line-through text-muted{% endif %}">
                             {{ task.description }}
+                            {% if task.is_support %}
+                            <span class="badge bg-warning text-dark ms-1"><i class="bi bi-headset me-1"></i>Support</span>
+                            {% endif %}
                         </p>
                         {% if task.deadline %}
                         <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">

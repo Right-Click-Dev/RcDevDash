@@ -79,6 +79,7 @@ def dev_required(f):
 # =============================================================================
 
 _support_phases_checked = None
+_db_migrated = False
 
 
 def ensure_monthly_support_phases():
@@ -124,8 +125,21 @@ def ensure_monthly_support_phases():
 
 @app.before_request
 def check_support_phases():
-    """Run support phase check once per day."""
-    global _support_phases_checked
+    """Run support phase check once per day, and auto-migrate DB on first request."""
+    global _support_phases_checked, _db_migrated
+    if not _db_migrated:
+        _db_migrated = True
+        try:
+            with db.engine.connect() as conn:
+                task_cols = [row[1] for row in conn.execute(db.text("PRAGMA table_info(tasks)"))]
+                if 'is_support' not in task_cols:
+                    conn.execute(db.text("ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"))
+                wi_cols = [row[1] for row in conn.execute(db.text("PRAGMA table_info(work_items)"))]
+                if 'is_support' not in wi_cols:
+                    conn.execute(db.text("ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"))
+                conn.commit()
+        except Exception:
+            pass
     today = date.today()
     if _support_phases_checked == today:
         return
@@ -174,7 +188,34 @@ def home():
         sorted_keys.append('Unassigned')
     grouped_external = OrderedDict((k, raw_grouped[k]) for k in sorted_keys)
 
+    # Group external projects by assigned developer
+    dev_grouped = {}
+    for project in external_projects:
+        if project.assigned_developers:
+            for dev in project.assigned_developers:
+                dev_grouped.setdefault(dev.username, []).append(project)
+        else:
+            dev_grouped.setdefault('Unassigned', []).append(project)
+    dev_sorted_keys = sorted((k for k in dev_grouped if k != 'Unassigned'), key=str.lower)
+    if 'Unassigned' in dev_grouped:
+        dev_sorted_keys.append('Unassigned')
+    grouped_by_dev = OrderedDict((k, dev_grouped[k]) for k in dev_sorted_keys)
+
+    # Calculate MTD hours per developer from work items
+    from datetime import date as date_cls
+    today = date_cls.today()
+    month_start = datetime(today.year, today.month, 1)
+    developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN])).all()
+    dev_mtd_hours = {}
+    for dev in developers:
+        mtd = db.session.query(db.func.coalesce(db.func.sum(WorkItem.hours), 0.0)).filter(
+            WorkItem.created_by_id == dev.id,
+            WorkItem.work_date >= month_start
+        ).scalar()
+        dev_mtd_hours[dev.username] = round(float(mtd), 1)
+
     return render_template('home.html', external_projects=external_projects, grouped_external=grouped_external,
+                           grouped_by_dev=grouped_by_dev, dev_mtd_hours=dev_mtd_hours,
                            internal_projects=internal_projects, leads=leads, clients=clients, show_archived=show_archived)
 
 
@@ -469,7 +510,8 @@ def toggle_task(task_id):
                     description=notes or f"Completed task: {task.description}",
                     hours=hours_val,
                     work_date=datetime.utcnow(),
-                    created_by_id=current_user.id
+                    created_by_id=current_user.id,
+                    is_support=task.is_support
                 )
                 db.session.add(work_item)
 
@@ -477,6 +519,20 @@ def toggle_task(task_id):
 
         return jsonify({'success': True, 'completed': task.completed})
 
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/task/<int:task_id>/toggle-support', methods=['POST'])
+@login_required
+def toggle_task_support(task_id):
+    """Toggle whether a task counts against support hours"""
+    try:
+        task = Task.query.get_or_404(task_id)
+        task.is_support = not task.is_support
+        db.session.commit()
+        return jsonify({'success': True, 'is_support': task.is_support})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1904,6 +1960,15 @@ def create_user_command():
 def init_db_command():
     """Initialize the database with tables"""
     db.create_all()
+    # Add new columns to existing tables if missing
+    with db.engine.connect() as conn:
+        task_cols = [row[1] for row in conn.execute(db.text("PRAGMA table_info(tasks)"))]
+        if 'is_support' not in task_cols:
+            conn.execute(db.text("ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"))
+        wi_cols = [row[1] for row in conn.execute(db.text("PRAGMA table_info(work_items)"))]
+        if 'is_support' not in wi_cols:
+            conn.execute(db.text("ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"))
+        conn.commit()
     print('Database initialized!')
 
 

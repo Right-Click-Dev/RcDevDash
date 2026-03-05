@@ -146,6 +146,21 @@
                         <span class="text-muted small">Hours accrued:</span>
                         <span class="fw-bold small text-info">{{ "%.1f"|format(project.monthly_support_hours_accrued) }} hrs</span>
                     </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Support hrs used:</span>
+                        <span class="fw-bold small {% if project.support_hours_used > project.monthly_support_hours_accrued %}text-danger{% else %}text-success{% endif %}">
+                            {{ "%.1f"|format(project.support_hours_used) }} / {{ "%.1f"|format(project.monthly_support_hours_accrued) }} hrs
+                        </span>
+                    </div>
+                    <div class="progress mt-1" style="height: 6px;">
+                        {% set support_pct = (project.support_hours_used / project.monthly_support_hours_accrued * 100) if project.monthly_support_hours_accrued > 0 else 0 %}
+                        <div class="progress-bar {% if support_pct > 100 %}bg-danger{% elif support_pct > 75 %}bg-warning{% else %}bg-success{% endif %}"
+                             style="width: {{ [support_pct, 100]|min }}%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1">
+                        <span class="text-muted small">Support tasks:</span>
+                        <span class="fw-bold small">{{ project.support_tasks_completed_count }}/{{ project.support_tasks_count }}</span>
+                    </div>
                     {% endif %}
                     {% if project.monthly_support_amount > 0 %}
                     <div class="d-flex justify-content-between">
@@ -618,6 +633,9 @@
                                         {% endif %}
                                     </div>
                                     <div class="btn-group btn-group-sm ms-2">
+                                        <button type="button" class="btn btn-sm btn-{{ 'warning' if task.is_support else 'outline-secondary' }} support-toggle-btn" data-task-id="{{ task.id }}" title="{{ 'Support task' if task.is_support else 'Mark as support' }}">
+                                            <i class="bi bi-headset"></i>
+                                        </button>
                                         <select class="form-select form-select-sm task-assign-select" data-task-id="{{ task.id }}" style="width: auto; font-size: 0.75rem;">
                                             <option value="">Unassigned</option>
                                             {% for dev in developers %}
@@ -673,6 +691,9 @@
                                     {% endif %}
                                 </div>
                                 <div class="btn-group btn-group-sm ms-2">
+                                    <button type="button" class="btn btn-sm btn-{{ 'warning' if task.is_support else 'outline-secondary' }} support-toggle-btn" data-task-id="{{ task.id }}" title="{{ 'Support task' if task.is_support else 'Mark as support' }}">
+                                        <i class="bi bi-headset"></i>
+                                    </button>
                                     <select class="form-select form-select-sm task-assign-select" data-task-id="{{ task.id }}" style="width: auto; font-size: 0.75rem;">
                                         <option value="">Unassigned</option>
                                         {% for dev in developers %}
@@ -1019,6 +1040,28 @@
         if (!document.getElementById('work_date').value) {
             document.getElementById('work_date').value = now;
         }
+
+        document.querySelectorAll('.support-toggle-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const taskId = this.dataset.taskId;
+                fetch('/api/task/' + taskId + '/toggle-support', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (data.is_support) {
+                            btn.classList.remove('btn-outline-secondary');
+                            btn.classList.add('btn-warning');
+                            btn.title = 'Support task';
+                        } else {
+                            btn.classList.remove('btn-warning');
+                            btn.classList.add('btn-outline-secondary');
+                            btn.title = 'Mark as support';
+                        }
+                    }
+                })
+                .catch(err => alert('Error toggling support'));
+            });
+        });
 
         document.querySelectorAll('.task-assign-select').forEach(function(select) {
             select.addEventListener('change', function() {
