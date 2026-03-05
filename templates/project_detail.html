@@ -206,17 +206,21 @@
 <div class="card mb-4">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="card-title mb-0"><i class="bi bi-person-badge me-1"></i> Assigned POC</h5>
+            <h5 class="card-title mb-0"><i class="bi bi-person-badge me-1"></i> Assigned POCs</h5>
             {% if current_user.is_admin %}
             <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#assignPocModal">
                 <i class="bi bi-person-check me-1"></i> Manage
             </button>
             {% endif %}
         </div>
-        {% if project.poc %}
-        <span class="badge bg-info"><i class="bi bi-person-badge me-1"></i>{{ project.poc.username }}</span>
+        {% if project.assigned_pocs %}
+        <div class="d-flex flex-wrap gap-1">
+            {% for poc in project.assigned_pocs %}
+            <span class="badge bg-info"><i class="bi bi-person-badge me-1"></i>{{ poc.username }}</span>
+            {% endfor %}
+        </div>
         {% else %}
-        <p class="text-muted mb-0 small">No POC assigned yet.</p>
+        <p class="text-muted mb-0 small">No POCs assigned yet.</p>
         {% endif %}
     </div>
 </div>
@@ -845,20 +849,22 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-info text-white">
-                <h5 class="modal-title"><i class="bi bi-person-badge me-1"></i> Assign POC</h5>
+                <h5 class="modal-title"><i class="bi bi-person-badge me-1"></i> Assign POCs</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('assign_poc', project_id=project.id) }}">
+            <form method="POST" action="{{ url_for('assign_pocs', project_id=project.id) }}">
                 <div class="modal-body">
-                    <p class="text-muted small">Select a POC for this project:</p>
-                    <select class="form-select" name="poc_id">
-                        <option value="">-- No POC --</option>
-                        {% for poc in poc_users %}
-                        <option value="{{ poc.id }}" {% if project.poc_id == poc.id %}selected{% endif %}>
+                    <p class="text-muted small">Select POC users to assign to this project:</p>
+                    {% for poc in poc_users %}
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="poc_ids" value="{{ poc.id }}" id="poc_{{ poc.id }}"
+                               {% if poc in project.assigned_pocs %}checked{% endif %}>
+                        <label class="form-check-label" for="poc_{{ poc.id }}">
                             {{ poc.username }}
-                        </option>
-                        {% endfor %}
-                    </select>
+                            <span class="badge bg-info ms-1">poc</span>
+                        </label>
+                    </div>
+                    {% endfor %}
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>

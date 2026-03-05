@@ -12,6 +12,13 @@ project_assignments = db.Table('project_assignments',
     db.Column('assigned_at', db.DateTime, default=datetime.utcnow)
 )
 
+# Association table for many-to-many POC <-> Project assignments
+poc_assignments = db.Table('poc_assignments',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('project_id', db.Integer, db.ForeignKey('projects.id'), primary_key=True),
+    db.Column('assigned_at', db.DateTime, default=datetime.utcnow)
+)
+
 
 class User(UserMixin, db.Model):
     """User model for authentication"""
@@ -109,12 +116,12 @@ class Project(db.Model):
     monthly_support_hours = db.Column(db.Float, default=0.0)
     monthly_support_amount = db.Column(db.Float, default=0.0)
     proposal_file_path = db.Column(db.String(500), nullable=True)
-    poc_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    poc = db.relationship('User', foreign_keys=[poc_id], backref='poc_projects')
+    assigned_pocs = db.relationship('User', secondary=poc_assignments,
+        backref=db.backref('poc_projects', lazy=True), lazy=True)
     work_items = db.relationship('WorkItem', backref='project', lazy=True, cascade='all, delete-orphan')
     tasks = db.relationship('Task', backref='project', lazy=True, cascade='all, delete-orphan')
     invoices = db.relationship('Invoice', backref='project', lazy=True, cascade='all, delete-orphan')

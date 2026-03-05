@@ -134,7 +134,6 @@ def check_support_phases():
             ("ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"),
             ("ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"),
             ("ALTER TABLE users ADD COLUMN hourly_rate FLOAT DEFAULT 0.0"),
-            ("ALTER TABLE projects ADD COLUMN poc_id INTEGER"),
         ]
         for sql in migrations:
             try:
@@ -142,6 +141,28 @@ def check_support_phases():
                 db.session.commit()
             except Exception:
                 db.session.rollback()
+        # Create poc_assignments table if missing
+        is_sqlite = Config.USE_SQLITE
+        if is_sqlite:
+            create_poc = '''CREATE TABLE IF NOT EXISTS poc_assignments (
+                user_id INTEGER NOT NULL, project_id INTEGER NOT NULL,
+                assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, project_id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (project_id) REFERENCES projects(id))'''
+        else:
+            create_poc = '''CREATE TABLE IF NOT EXISTS poc_assignments (
+                user_id INTEGER NOT NULL, project_id INTEGER NOT NULL,
+                assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, project_id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (project_id) REFERENCES projects(id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'''
+        try:
+            db.session.execute(db.text(create_poc))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
     today = date.today()
     if _support_phases_checked == today:
         return
@@ -172,7 +193,7 @@ def home():
         internal_projects = [p for p in assigned if p.project_type == 'Internal']
         leads = []
     elif current_user.role == User.ROLE_POC:
-        assigned = Project.query.filter_by(poc_id=current_user.id).all()
+        assigned = current_user.poc_projects
         if not show_archived:
             assigned = [p for p in assigned if p.status != 'archived']
         external_projects = [p for p in assigned if p.project_type == 'External']
@@ -239,8 +260,8 @@ def project_detail(project_id):
     if current_user.role == User.ROLE_DEVELOPER:
         return redirect(url_for('dev_project_view', project_id=project_id))
 
-    # POC users can only view projects where they are the POC
-    if current_user.is_poc and project.poc_id != current_user.id:
+    # POC users can only view projects where they are an assigned POC
+    if current_user.is_poc and project not in current_user.poc_projects:
         abort(403)
 
     work_items = WorkItem.query.filter_by(project_id=project_id).order_by(WorkItem.work_date.desc()).all()
@@ -659,23 +680,24 @@ def assign_developers(project_id):
         return redirect(url_for('project_detail', project_id=project_id))
 
 
-@app.route('/api/project/<int:project_id>/assign-poc', methods=['POST'])
+@app.route('/api/project/<int:project_id>/assign-pocs', methods=['POST'])
 @admin_required
-def assign_poc(project_id):
-    """Assign a POC user to a project"""
+def assign_pocs(project_id):
+    """Assign POC users to a project"""
     try:
         project = Project.query.get_or_404(project_id)
-        poc_id = request.form.get('poc_id')
-        project.poc_id = int(poc_id) if poc_id else None
+        selected_ids = request.form.getlist('poc_ids')
+        selected_ids = [int(uid) for uid in selected_ids]
+
+        new_pocs = User.query.filter(User.id.in_(selected_ids)).all() if selected_ids else []
+        project.assigned_pocs = new_pocs
         db.session.commit()
-        if project.poc:
-            flash(f'POC set to "{project.poc.username}" for "{project.name}".', 'success')
-        else:
-            flash(f'POC removed from "{project.name}".', 'success')
+
+        flash(f'POC assignments updated for "{project.name}".', 'success')
         return redirect(url_for('project_detail', project_id=project_id))
     except Exception as e:
         db.session.rollback()
-        flash(f'Error updating POC: {str(e)}', 'error')
+        flash(f'Error updating POCs: {str(e)}', 'error')
         return redirect(url_for('project_detail', project_id=project_id))
 
 
@@ -2000,7 +2022,6 @@ def init_db_command():
         ("tasks", "is_support", "ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"),
         ("work_items", "is_support", "ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"),
         ("users", "hourly_rate", "ALTER TABLE users ADD COLUMN hourly_rate FLOAT DEFAULT 0.0"),
-        ("projects", "poc_id", "ALTER TABLE projects ADD COLUMN poc_id INTEGER"),
     ]
     for table, col, sql in migrations:
         try:
@@ -2013,6 +2034,7 @@ def init_db_command():
                 print(f'  = {table}.{col} already exists')
             else:
                 print(f'  ! Error adding {table}.{col}: {e}')
+    # poc_assignments table is created by db.create_all() above
     print('Database initialized!')
 
 
