@@ -21,7 +21,8 @@ class User(UserMixin, db.Model):
     ROLE_ADMIN = 'admin'
     ROLE_DEVELOPER = 'developer'
     ROLE_BILLING = 'billing'
-    ROLES = [ROLE_ADMIN, ROLE_DEVELOPER, ROLE_BILLING]
+    ROLE_POC = 'poc'
+    ROLES = [ROLE_ADMIN, ROLE_DEVELOPER, ROLE_BILLING, ROLE_POC]
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -37,12 +38,22 @@ class User(UserMixin, db.Model):
     @property
     def can_access_dev(self):
         """Check if user can access developer pages"""
-        return self.role in (self.ROLE_ADMIN, self.ROLE_DEVELOPER)
+        return self.role in (self.ROLE_ADMIN, self.ROLE_DEVELOPER, self.ROLE_POC)
 
     @property
     def can_access_billing(self):
         """Check if user can access billing pages"""
         return self.role in (self.ROLE_ADMIN, self.ROLE_BILLING)
+
+    @property
+    def is_poc(self):
+        """Check if user is a Right Click POC"""
+        return self.role == self.ROLE_POC
+
+    @property
+    def can_manage_projects(self):
+        """Check if user can manage project details (admin view of projects)"""
+        return self.role in (self.ROLE_ADMIN, self.ROLE_POC)
 
     def set_password(self, password):
         """Hash and set the user's password"""

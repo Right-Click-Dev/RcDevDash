@@ -161,14 +161,14 @@ def home():
     show_archived = request.args.get('show_archived', '0') == '1'
     clients = Client.query.order_by(Client.name).all()
 
-    # Developers only see projects they're assigned to
-    if current_user.role == User.ROLE_DEVELOPER:
+    # Developers and POC users only see projects they're assigned to
+    if current_user.role in (User.ROLE_DEVELOPER, User.ROLE_POC):
         assigned = current_user.assigned_projects
         if not show_archived:
             assigned = [p for p in assigned if p.status != 'archived']
         external_projects = [p for p in assigned if p.project_type == 'External']
         internal_projects = [p for p in assigned if p.project_type == 'Internal']
-        leads = []  # Developers don't manage leads
+        leads = []  # Non-admin users don't manage leads
     else:
         base_query = Project.query
         if not show_archived:
@@ -205,7 +205,7 @@ def home():
     from datetime import date as date_cls
     today = date_cls.today()
     month_start = datetime(today.year, today.month, 1)
-    developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN])).all()
+    developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN, User.ROLE_POC])).all()
     dev_mtd_hours = {}
     for dev in developers:
         mtd = db.session.query(db.func.coalesce(db.func.sum(WorkItem.hours), 0.0)).filter(
@@ -229,9 +229,13 @@ def project_detail(project_id):
     if current_user.role == User.ROLE_DEVELOPER:
         return redirect(url_for('dev_project_view', project_id=project_id))
 
+    # POC users can only view projects they're assigned to
+    if current_user.is_poc and project not in current_user.assigned_projects:
+        abort(403)
+
     work_items = WorkItem.query.filter_by(project_id=project_id).order_by(WorkItem.work_date.desc()).all()
     tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.deadline).all()
-    developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN])).order_by(User.username).all()
+    developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN, User.ROLE_POC])).order_by(User.username).all()
     dev_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='dev').order_by(ProjectComment.created_at.desc()).all()
     phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
     clients = Client.query.order_by(Client.name).all()

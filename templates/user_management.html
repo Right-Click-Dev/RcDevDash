@@ -47,6 +47,8 @@
                         <td>
                             {% if user.role == 'admin' %}
                             <span class="badge bg-warning text-dark"><i class="bi bi-shield-check me-1"></i>Admin</span>
+                            {% elif user.role == 'poc' %}
+                            <span class="badge bg-info"><i class="bi bi-person-badge me-1"></i>RC POC</span>
                             {% elif user.role == 'billing' %}
                             <span class="badge bg-success"><i class="bi bi-receipt me-1"></i>Billing</span>
                             {% else %}
@@ -118,11 +120,12 @@
                         <label for="role" class="form-label">Role *</label>
                         <select class="form-select" id="role" name="role" required>
                             <option value="admin">Admin (Full Access)</option>
+                            <option value="poc">RC POC (Admin View, Assigned Projects)</option>
                             <option value="developer" selected>Developer (Dev Dashboard)</option>
                             <option value="billing">Billing (Billing Dashboard)</option>
                         </select>
                         <div class="form-text">
-                            Admin: access to everything. Developer: dev dashboard only. Billing: billing dashboard only.
+                            Admin: full access. RC POC: admin dev view for assigned projects. Developer: dev dashboard only. Billing: billing only.
                         </div>
                     </div>
                     <div class="mb-3">
@@ -192,11 +195,12 @@
                         <label for="role_{{ user.id }}" class="form-label">Role *</label>
                         <select class="form-select" id="role_{{ user.id }}" name="role" required>
                             <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin (Full Access)</option>
+                            <option value="poc" {% if user.role == 'poc' %}selected{% endif %}>RC POC (Admin View, Assigned Projects)</option>
                             <option value="developer" {% if user.role == 'developer' %}selected{% endif %}>Developer (Dev Dashboard)</option>
                             <option value="billing" {% if user.role == 'billing' %}selected{% endif %}>Billing (Billing Dashboard)</option>
                         </select>
                         <div class="form-text">
-                            Admin: access to everything. Developer: dev dashboard only. Billing: billing dashboard only.
+                            Admin: full access. RC POC: admin dev view for assigned projects. Developer: dev dashboard only. Billing: billing only.
                         </div>
                     </div>
                 </div>
