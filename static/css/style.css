@@ -813,3 +813,18 @@ small, .small { font-size: 0.8125rem; }
 [data-theme="dark"] .card-header[style*="background-color"] {
     border-bottom-color: var(--clr-border);
 }
+
+/* Bootstrap border utilities in dark mode */
+[data-theme="dark"] .border-bottom { border-color: var(--clr-border) !important; }
+[data-theme="dark"] .border-top { border-color: var(--clr-border) !important; }
+
+/* Card header secondary */
+[data-theme="dark"] .card-header.bg-secondary { border-color: var(--clr-text-secondary) !important; }
+
+/* Card footer */
+[data-theme="dark"] .card-footer { border-top-color: var(--clr-border); }
+
+/* Dropdown menus (for customer nav) */
+[data-theme="dark"] .dropdown-menu { background: var(--clr-surface); border-color: var(--clr-border); }
+[data-theme="dark"] .dropdown-item { color: var(--clr-text); }
+[data-theme="dark"] .dropdown-item:hover { background: var(--clr-bg); }

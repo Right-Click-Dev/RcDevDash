@@ -33,27 +33,11 @@
                 <p class="card-text text-muted small mb-3">{{ project.description[:150] }}{% if project.description|length > 150 %}...{% endif %}</p>
                 {% endif %}
 
-                <!-- Hours Progress -->
-                {% if project.hours_budget > 0 %}
-                {% set pct = (project.hours_used / project.hours_budget * 100)|round(0)|int %}
-                <div class="mb-2">
-                    <div class="d-flex justify-content-between small text-muted mb-1">
-                        <span>Hours Used</span>
-                        <span>{{ "%.1f"|format(project.hours_used) }} / {{ "%.0f"|format(project.hours_budget) }} hrs</span>
-                    </div>
-                    <div class="progress" style="height: 6px;">
-                        <div class="progress-bar bg-{{ 'danger' if pct > 100 else 'warning' if pct > 80 else 'success' }}"
-                             style="width: {{ [pct, 100]|min }}%"></div>
-                    </div>
-                </div>
-                {% endif %}
-
                 <!-- Task Completion -->
                 {% set total_tasks = project.tasks|length %}
                 {% set completed_tasks = project.tasks|selectattr('completed')|list|length %}
-                <div class="d-flex justify-content-between text-muted small">
+                <div class="text-muted small">
                     <span><i class="bi bi-check2-square me-1"></i>{{ completed_tasks }}/{{ total_tasks }} tasks done</span>
-                    <span><i class="bi bi-clock me-1"></i>{{ project.work_items|length }} work entries</span>
                 </div>
 
                 <!-- Open Requests Count -->

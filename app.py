@@ -983,6 +983,65 @@ def close_customer_request(request_id):
         return redirect(request.referrer or url_for('home'))
 
 
+@app.route('/api/customer-request/<int:request_id>/edit', methods=['POST'])
+@login_required
+def edit_customer_request(request_id):
+    """Edit a customer request (only by the submitter, only while open)"""
+    try:
+        cr = CustomerRequest.query.get_or_404(request_id)
+        if cr.submitted_by_id != current_user.id:
+            abort(403)
+        if cr.status not in (CustomerRequest.STATUS_OPEN, CustomerRequest.STATUS_IN_PROGRESS):
+            flash('Cannot edit a closed or converted request.', 'error')
+            return redirect(request.referrer or url_for('home'))
+
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        request_type = request.form.get('request_type')
+
+        if title:
+            cr.title = title
+        if description:
+            cr.description = description
+        if request_type and request_type in CustomerRequest.TYPES:
+            cr.request_type = request_type
+
+        db.session.commit()
+        flash('Request updated.', 'success')
+        if current_user.is_customer:
+            return redirect(url_for('customer_project_view', project_id=cr.project_id))
+        return redirect(url_for('project_detail', project_id=cr.project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('home'))
+
+
+@app.route('/api/customer-request/<int:request_id>/delete', methods=['POST'])
+@login_required
+def delete_customer_request(request_id):
+    """Delete a customer request (only by the submitter, only while open)"""
+    try:
+        cr = CustomerRequest.query.get_or_404(request_id)
+        if cr.submitted_by_id != current_user.id and not current_user.is_admin:
+            abort(403)
+        if cr.status in (CustomerRequest.STATUS_CONVERTED,) and not current_user.is_admin:
+            flash('Cannot delete a converted request.', 'error')
+            return redirect(request.referrer or url_for('home'))
+
+        project_id = cr.project_id
+        db.session.delete(cr)
+        db.session.commit()
+        flash('Request deleted.', 'success')
+        if current_user.is_customer:
+            return redirect(url_for('customer_project_view', project_id=project_id))
+        return redirect(url_for('project_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('home'))
+
+
 @app.route('/report/<int:project_id>')
 @login_required
 def generate_report(project_id):

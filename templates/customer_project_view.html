@@ -210,7 +210,19 @@
                         <span class="badge {{ cr.status_badge_class }} ms-1">{{ cr.status_display }}</span>
                         <strong class="ms-2">{{ cr.title }}</strong>
                     </div>
-                    <small class="text-muted">{{ cr.created_at|datetimeformat('%b %d, %Y') }}</small>
+                    <div class="d-flex align-items-center gap-2">
+                        <small class="text-muted">{{ cr.created_at|datetimeformat('%b %d, %Y') }}</small>
+                        {% if cr.submitted_by_id == current_user.id and cr.status in ('open', 'in_progress') %}
+                        <button class="btn btn-sm btn-outline-primary py-0 px-1" data-bs-toggle="modal" data-bs-target="#editRequestModal{{ cr.id }}" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <form method="POST" action="{{ url_for('delete_customer_request', request_id=cr.id) }}" class="d-inline" onsubmit="return confirm('Delete this request?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
                 </div>
                 <p class="mb-1 mt-1 text-muted small">{{ cr.description }}</p>
                 {% if cr.admin_notes %}
@@ -227,4 +239,44 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Edit Request Modals -->
+{% for cr in customer_requests %}
+{% if cr.submitted_by_id == current_user.id and cr.status in ('open', 'in_progress') %}
+<div class="modal fade" id="editRequestModal{{ cr.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('edit_customer_request', request_id=cr.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small">Request Type *</label>
+                        <select class="form-select form-select-sm" name="request_type">
+                            <option value="feature_change" {% if cr.request_type == 'feature_change' %}selected{% endif %}>Feature Change</option>
+                            <option value="issue_report" {% if cr.request_type == 'issue_report' %}selected{% endif %}>Issue Report</option>
+                            <option value="down_report" {% if cr.request_type == 'down_report' %}selected{% endif %}>Down Report</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Title *</label>
+                        <input type="text" class="form-control form-control-sm" name="title" value="{{ cr.title }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Description *</label>
+                        <textarea class="form-control form-control-sm" name="description" rows="3" required>{{ cr.description }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
 {% endblock %}
