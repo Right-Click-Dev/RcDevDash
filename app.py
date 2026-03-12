@@ -327,7 +327,7 @@ def project_detail(project_id):
         abort(403)
 
     work_items = WorkItem.query.filter_by(project_id=project_id).order_by(WorkItem.work_date.desc()).all()
-    tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.completed_at.desc().nullslast(), Task.created_at.desc()).all()
+    tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.completed_at.desc(), Task.created_at.desc()).all()
     developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN])).order_by(User.username).all()
     poc_users = User.query.filter_by(role=User.ROLE_POC).order_by(User.username).all()
     customer_users = User.query.filter_by(role=User.ROLE_CUSTOMER).order_by(User.username).all()
@@ -808,7 +808,7 @@ def assign_task(task_id):
 def dev_project_view(project_id):
     """Developer-focused project view showing only their tasks"""
     project = Project.query.get_or_404(project_id)
-    my_tasks = Task.query.filter_by(project_id=project_id, assigned_to_id=current_user.id).order_by(Task.completed, Task.completed_at.desc().nullslast(), Task.created_at.desc()).all()
+    my_tasks = Task.query.filter_by(project_id=project_id, assigned_to_id=current_user.id).order_by(Task.completed, Task.completed_at.desc(), Task.created_at.desc()).all()
     my_work_items = WorkItem.query.filter_by(project_id=project_id, created_by_id=current_user.id).order_by(WorkItem.work_date.desc()).all()
     dev_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='dev').order_by(ProjectComment.created_at.desc()).all()
     phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
@@ -845,7 +845,7 @@ def customer_project_view(project_id):
         abort(403)
 
     work_items = WorkItem.query.filter_by(project_id=project_id).order_by(WorkItem.work_date.desc()).all()
-    tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.completed_at.desc().nullslast(), Task.created_at.desc()).all()
+    tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.completed_at.desc(), Task.created_at.desc()).all()
     phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
     customer_requests = CustomerRequest.query.filter_by(project_id=project_id).order_by(CustomerRequest.created_at.desc()).all()
 

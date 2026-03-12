@@ -123,7 +123,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="role" class="form-label">Role *</label>
-                        <select class="form-select" id="create_role" name="role" required onchange="toggleClientSelect(this, 'create_client_group')">
+                        <select class="form-select" id="create_role" name="role" required onchange="toggleClientSelect(this, 'create_client_group'); toggleRateField(this, 'create_rate_group')">
                             <option value="admin">Admin (Full Access)</option>
                             <option value="poc">RC POC (Admin View, Assigned Projects)</option>
                             <option value="developer" selected>Developer (Dev Dashboard)</option>
@@ -144,7 +144,7 @@
                         </select>
                         <div class="form-text">Required for customer accounts. Links them to their company's projects.</div>
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-3" id="create_rate_group">
                         <label for="hourly_rate" class="form-label">Hourly Rate</label>
                         <div class="input-group">
                             <span class="input-group-text">$</span>
@@ -307,6 +307,12 @@ function toggleClientSelect(selectEl, targetId) {
     var group = document.getElementById(targetId);
     if (group) {
         group.style.display = selectEl.value === 'customer' ? 'block' : 'none';
+    }
+}
+function toggleRateField(selectEl, targetId) {
+    var group = document.getElementById(targetId);
+    if (group) {
+        group.style.display = selectEl.value === 'customer' ? 'none' : 'block';
     }
 }
 </script>
