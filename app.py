@@ -5,7 +5,8 @@ from flask_login import LoginManager, login_required, current_user
 from datetime import datetime, date
 from config import Config
 from models import (db, User, Project, WorkItem, Task, Lead, LeadNote, LeadTask, Invoice,
-                    Client, Phase, ProjectComment, ProjectLink, Expense, project_assignments)
+                    Client, Phase, ProjectComment, ProjectLink, Expense, project_assignments,
+                    CustomerRequest)
 from auth import auth_bp
 from reports import generate_project_report
 
@@ -74,6 +75,16 @@ def dev_required(f):
     return decorated_function
 
 
+def customer_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_customer:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 # =============================================================================
 # AUTO-CREATE MONTHLY SUPPORT PHASES
 # =============================================================================
@@ -134,6 +145,7 @@ def check_support_phases():
             ("ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"),
             ("ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"),
             ("ALTER TABLE users ADD COLUMN hourly_rate FLOAT DEFAULT 0.0"),
+            ("ALTER TABLE users ADD COLUMN client_id INTEGER"),
         ]
         for sql in migrations:
             try:
@@ -141,7 +153,7 @@ def check_support_phases():
                 db.session.commit()
             except Exception:
                 db.session.rollback()
-        # Create poc_assignments table if missing
+        # Create tables if missing
         is_sqlite = Config.USE_SQLITE
         if is_sqlite:
             create_poc = '''CREATE TABLE IF NOT EXISTS poc_assignments (
@@ -150,6 +162,21 @@ def check_support_phases():
                 PRIMARY KEY (user_id, project_id),
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (project_id) REFERENCES projects(id))'''
+            create_cr = '''CREATE TABLE IF NOT EXISTS customer_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                submitted_by_id INTEGER NOT NULL,
+                request_type VARCHAR(50) NOT NULL,
+                title VARCHAR(300) NOT NULL,
+                description TEXT NOT NULL,
+                status VARCHAR(20) DEFAULT 'open',
+                admin_notes TEXT,
+                converted_task_id INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id),
+                FOREIGN KEY (submitted_by_id) REFERENCES users(id),
+                FOREIGN KEY (converted_task_id) REFERENCES tasks(id))'''
         else:
             create_poc = '''CREATE TABLE IF NOT EXISTS poc_assignments (
                 user_id INTEGER NOT NULL, project_id INTEGER NOT NULL,
@@ -158,11 +185,43 @@ def check_support_phases():
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (project_id) REFERENCES projects(id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'''
-        try:
-            db.session.execute(db.text(create_poc))
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+            create_cr = '''CREATE TABLE IF NOT EXISTS customer_requests (
+                id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                project_id INTEGER NOT NULL,
+                submitted_by_id INTEGER NOT NULL,
+                request_type VARCHAR(50) NOT NULL,
+                title VARCHAR(300) NOT NULL,
+                description TEXT NOT NULL,
+                status VARCHAR(20) DEFAULT 'open',
+                admin_notes TEXT,
+                converted_task_id INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id),
+                FOREIGN KEY (submitted_by_id) REFERENCES users(id),
+                FOREIGN KEY (converted_task_id) REFERENCES tasks(id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'''
+        if is_sqlite:
+            create_ca = '''CREATE TABLE IF NOT EXISTS customer_assignments (
+                user_id INTEGER NOT NULL, project_id INTEGER NOT NULL,
+                assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, project_id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (project_id) REFERENCES projects(id))'''
+        else:
+            create_ca = '''CREATE TABLE IF NOT EXISTS customer_assignments (
+                user_id INTEGER NOT NULL, project_id INTEGER NOT NULL,
+                assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, project_id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (project_id) REFERENCES projects(id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'''
+        for create_sql in [create_poc, create_cr, create_ca]:
+            try:
+                db.session.execute(db.text(create_sql))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
     today = date.today()
     if _support_phases_checked == today:
         return
@@ -177,6 +236,9 @@ def check_support_phases():
 @login_required
 def home():
     """Home page - display all projects and leads"""
+    # Customer users get redirected to customer dashboard
+    if current_user.is_customer:
+        return redirect(url_for('customer_dashboard'))
     # Billing-only users get redirected to billing dashboard
     if not current_user.can_access_dev:
         return redirect(url_for('billing_dashboard'))
@@ -265,14 +327,18 @@ def project_detail(project_id):
         abort(403)
 
     work_items = WorkItem.query.filter_by(project_id=project_id).order_by(WorkItem.work_date.desc()).all()
-    tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.deadline).all()
+    tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.completed_at.desc().nullslast(), Task.created_at.desc()).all()
     developers = User.query.filter(User.role.in_([User.ROLE_DEVELOPER, User.ROLE_ADMIN])).order_by(User.username).all()
     poc_users = User.query.filter_by(role=User.ROLE_POC).order_by(User.username).all()
+    customer_users = User.query.filter_by(role=User.ROLE_CUSTOMER).order_by(User.username).all()
     dev_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='dev').order_by(ProjectComment.created_at.desc()).all()
     phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
     clients = Client.query.order_by(Client.name).all()
+    customer_requests = CustomerRequest.query.filter_by(project_id=project_id).order_by(CustomerRequest.created_at.desc()).all()
     return render_template('project_detail.html', project=project, work_items=work_items, tasks=tasks,
-                           developers=developers, poc_users=poc_users, comments=dev_comments, phases=phases, clients=clients, now=datetime.now())
+                           developers=developers, poc_users=poc_users, customer_users=customer_users,
+                           comments=dev_comments, phases=phases,
+                           clients=clients, customer_requests=customer_requests, now=datetime.now())
 
 
 @app.route('/api/project/create', methods=['POST'])
@@ -701,6 +767,27 @@ def assign_pocs(project_id):
         return redirect(url_for('project_detail', project_id=project_id))
 
 
+@app.route('/api/project/<int:project_id>/assign-customers', methods=['POST'])
+@admin_required
+def assign_customers(project_id):
+    """Assign customer users to a project"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        selected_ids = request.form.getlist('customer_ids')
+        selected_ids = [int(uid) for uid in selected_ids]
+
+        new_customers = User.query.filter(User.id.in_(selected_ids)).all() if selected_ids else []
+        project.assigned_customers = new_customers
+        db.session.commit()
+
+        flash(f'Customer assignments updated for "{project.name}".', 'success')
+        return redirect(url_for('project_detail', project_id=project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating customers: {str(e)}', 'error')
+        return redirect(url_for('project_detail', project_id=project_id))
+
+
 @app.route('/api/task/<int:task_id>/assign', methods=['POST'])
 @admin_required
 def assign_task(task_id):
@@ -721,13 +808,179 @@ def assign_task(task_id):
 def dev_project_view(project_id):
     """Developer-focused project view showing only their tasks"""
     project = Project.query.get_or_404(project_id)
-    my_tasks = Task.query.filter_by(project_id=project_id, assigned_to_id=current_user.id).order_by(Task.completed, Task.deadline).all()
+    my_tasks = Task.query.filter_by(project_id=project_id, assigned_to_id=current_user.id).order_by(Task.completed, Task.completed_at.desc().nullslast(), Task.created_at.desc()).all()
     my_work_items = WorkItem.query.filter_by(project_id=project_id, created_by_id=current_user.id).order_by(WorkItem.work_date.desc()).all()
     dev_comments = ProjectComment.query.filter_by(project_id=project_id, page_type='dev').order_by(ProjectComment.created_at.desc()).all()
     phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
     current_phase = Phase.query.filter_by(project_id=project_id, status='in_progress').first()
     return render_template('dev_project_view.html', project=project, tasks=my_tasks, work_items=my_work_items,
                            comments=dev_comments, phases=phases, current_phase=current_phase, now=datetime.now())
+
+
+# =============================================================================
+# CUSTOMER ROUTES
+# =============================================================================
+
+@app.route('/customer')
+@customer_required
+def customer_dashboard():
+    """Customer dashboard - show assigned projects"""
+    projects = [p for p in current_user.customer_projects if p.status != 'archived']
+    projects.sort(key=lambda p: p.updated_at or datetime.min, reverse=True)
+
+    client = Client.query.get(current_user.client_id) if current_user.client_id else None
+    if not projects:
+        flash('You have no projects assigned yet. Please contact an administrator.', 'warning')
+    return render_template('customer_dashboard.html', projects=projects, client=client)
+
+
+@app.route('/customer/project/<int:project_id>')
+@customer_required
+def customer_project_view(project_id):
+    """Read-only project view for customers"""
+    project = Project.query.get_or_404(project_id)
+
+    # Customer must be explicitly assigned to this project
+    if project not in current_user.customer_projects:
+        abort(403)
+
+    work_items = WorkItem.query.filter_by(project_id=project_id).order_by(WorkItem.work_date.desc()).all()
+    tasks = Task.query.filter_by(project_id=project_id).order_by(Task.completed, Task.completed_at.desc().nullslast(), Task.created_at.desc()).all()
+    phases = Phase.query.filter_by(project_id=project_id).order_by(Phase.sort_order).all()
+    customer_requests = CustomerRequest.query.filter_by(project_id=project_id).order_by(CustomerRequest.created_at.desc()).all()
+
+    return render_template('customer_project_view.html', project=project, work_items=work_items,
+                           tasks=tasks, phases=phases, customer_requests=customer_requests)
+
+
+# =============================================================================
+# CUSTOMER REQUEST ROUTES
+# =============================================================================
+
+@app.route('/api/customer-request/add', methods=['POST'])
+@login_required
+def add_customer_request():
+    """Add a customer request / discussion item"""
+    try:
+        project_id = int(request.form.get('project_id'))
+        project = Project.query.get_or_404(project_id)
+
+        # Customers can only submit to projects they're assigned to
+        if current_user.is_customer and project not in current_user.customer_projects:
+            abort(403)
+
+        # Non-customers must be admin to add requests
+        if not current_user.is_customer and not current_user.is_admin:
+            abort(403)
+
+        request_type = request.form.get('request_type')
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+
+        if not title or not description or request_type not in CustomerRequest.TYPES:
+            flash('Title, description, and valid type are required.', 'error')
+            if current_user.is_customer:
+                return redirect(url_for('customer_project_view', project_id=project_id))
+            return redirect(url_for('project_detail', project_id=project_id))
+
+        cr = CustomerRequest(
+            project_id=project_id,
+            submitted_by_id=current_user.id,
+            request_type=request_type,
+            title=title,
+            description=description
+        )
+        db.session.add(cr)
+        db.session.commit()
+
+        flash('Request submitted successfully!', 'success')
+        if current_user.is_customer:
+            return redirect(url_for('customer_project_view', project_id=project_id))
+        return redirect(url_for('project_detail', project_id=project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error submitting request: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('home'))
+
+
+@app.route('/api/customer-request/<int:request_id>/update-status', methods=['POST'])
+@admin_required
+def update_customer_request_status(request_id):
+    """Update status of a customer request"""
+    try:
+        cr = CustomerRequest.query.get_or_404(request_id)
+        new_status = request.form.get('status')
+        admin_notes = request.form.get('admin_notes', '').strip()
+
+        if new_status in CustomerRequest.STATUSES:
+            cr.status = new_status
+        if admin_notes:
+            cr.admin_notes = admin_notes
+
+        db.session.commit()
+        flash('Request updated.', 'success')
+        return redirect(url_for('project_detail', project_id=cr.project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating request: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('home'))
+
+
+@app.route('/api/customer-request/<int:request_id>/convert-to-task', methods=['POST'])
+@admin_required
+def convert_request_to_task(request_id):
+    """Convert a customer request into a project task"""
+    try:
+        cr = CustomerRequest.query.get_or_404(request_id)
+
+        assigned_to_id = request.form.get('assigned_to_id')
+        phase_id = request.form.get('phase_id')
+        deadline_str = request.form.get('deadline')
+        deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date() if deadline_str else None
+
+        task = Task(
+            project_id=cr.project_id,
+            description=f"[{cr.type_label}] {cr.title}",
+            deadline=deadline,
+            assigned_to_id=int(assigned_to_id) if assigned_to_id else None,
+            phase_id=int(phase_id) if phase_id else None,
+            is_support=(cr.request_type in (CustomerRequest.TYPE_ISSUE, CustomerRequest.TYPE_DOWN))
+        )
+        db.session.add(task)
+        db.session.flush()
+
+        cr.status = CustomerRequest.STATUS_CONVERTED
+        cr.converted_task_id = task.id
+
+        db.session.commit()
+        flash('Request converted to task successfully!', 'success')
+        return redirect(url_for('project_detail', project_id=cr.project_id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error converting request: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('home'))
+
+
+@app.route('/api/customer-request/<int:request_id>/close', methods=['POST'])
+@admin_required
+def close_customer_request(request_id):
+    """Close a customer request without converting"""
+    try:
+        cr = CustomerRequest.query.get_or_404(request_id)
+        cr.status = CustomerRequest.STATUS_CLOSED
+        admin_notes = request.form.get('admin_notes', '').strip()
+        if admin_notes:
+            cr.admin_notes = admin_notes
+        db.session.commit()
+        flash('Request closed.', 'success')
+        return redirect(url_for('project_detail', project_id=cr.project_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('home'))
 
 
 @app.route('/report/<int:project_id>')
@@ -1833,7 +2086,8 @@ def delete_lead_task(task_id):
 @admin_required
 def user_management():
     users = User.query.order_by(User.created_at.desc()).all()
-    return render_template('user_management.html', users=users)
+    clients = Client.query.order_by(Client.name).all()
+    return render_template('user_management.html', users=users, clients=clients)
 
 
 @app.route('/api/user/create', methods=['POST'])
@@ -1859,7 +2113,9 @@ def create_user():
             return redirect(url_for('user_management'))
 
         hourly_rate = float(request.form.get('hourly_rate', 0) or 0)
-        user = User(username=username, is_admin=is_admin, role=role, hourly_rate=hourly_rate)
+        client_id = request.form.get('client_id')
+        user = User(username=username, is_admin=is_admin, role=role, hourly_rate=hourly_rate,
+                    client_id=int(client_id) if client_id and role == 'customer' else None)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
@@ -1940,6 +2196,12 @@ def change_user_role(user_id):
 
         user.role = role
         user.is_admin = (role == 'admin')
+        # Update client_id for customer role
+        client_id = request.form.get('client_id')
+        if role == 'customer' and client_id:
+            user.client_id = int(client_id)
+        elif role != 'customer':
+            user.client_id = None
         db.session.commit()
 
         flash(f'Role for "{user.username}" changed to {role}.', 'success')
@@ -2022,6 +2284,7 @@ def init_db_command():
         ("tasks", "is_support", "ALTER TABLE tasks ADD COLUMN is_support BOOLEAN DEFAULT 0"),
         ("work_items", "is_support", "ALTER TABLE work_items ADD COLUMN is_support BOOLEAN DEFAULT 0"),
         ("users", "hourly_rate", "ALTER TABLE users ADD COLUMN hourly_rate FLOAT DEFAULT 0.0"),
+        ("users", "client_id", "ALTER TABLE users ADD COLUMN client_id INTEGER"),
     ]
     for table, col, sql in migrations:
         try:

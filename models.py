@@ -19,6 +19,13 @@ poc_assignments = db.Table('poc_assignments',
     db.Column('assigned_at', db.DateTime, default=datetime.utcnow)
 )
 
+# Association table for many-to-many Customer <-> Project assignments
+customer_assignments = db.Table('customer_assignments',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('project_id', db.Integer, db.ForeignKey('projects.id'), primary_key=True),
+    db.Column('assigned_at', db.DateTime, default=datetime.utcnow)
+)
+
 
 class User(UserMixin, db.Model):
     """User model for authentication"""
@@ -29,7 +36,8 @@ class User(UserMixin, db.Model):
     ROLE_DEVELOPER = 'developer'
     ROLE_BILLING = 'billing'
     ROLE_POC = 'poc'
-    ROLES = [ROLE_ADMIN, ROLE_DEVELOPER, ROLE_BILLING, ROLE_POC]
+    ROLE_CUSTOMER = 'customer'
+    ROLES = [ROLE_ADMIN, ROLE_DEVELOPER, ROLE_BILLING, ROLE_POC, ROLE_CUSTOMER]
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -37,10 +45,12 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=True)
     role = db.Column(db.String(20), default=ROLE_ADMIN)
     hourly_rate = db.Column(db.Float, default=0.0)
+    client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
     assigned_projects = db.relationship('Project', secondary=project_assignments, backref=db.backref('assigned_developers', lazy=True), lazy=True)
+    client = db.relationship('Client', backref=db.backref('customer_users', lazy=True))
 
     @property
     def can_access_dev(self):
@@ -61,6 +71,11 @@ class User(UserMixin, db.Model):
     def can_manage_projects(self):
         """Check if user can manage project details (admin view of projects)"""
         return self.role in (self.ROLE_ADMIN, self.ROLE_POC)
+
+    @property
+    def is_customer(self):
+        """Check if user is a customer"""
+        return self.role == self.ROLE_CUSTOMER
 
     def set_password(self, password):
         """Hash and set the user's password"""
@@ -122,6 +137,8 @@ class Project(db.Model):
     # Relationships
     assigned_pocs = db.relationship('User', secondary=poc_assignments,
         backref=db.backref('poc_projects', lazy=True), lazy=True)
+    assigned_customers = db.relationship('User', secondary=customer_assignments,
+        backref=db.backref('customer_projects', lazy=True), lazy=True)
     work_items = db.relationship('WorkItem', backref='project', lazy=True, cascade='all, delete-orphan')
     tasks = db.relationship('Task', backref='project', lazy=True, cascade='all, delete-orphan')
     invoices = db.relationship('Invoice', backref='project', lazy=True, cascade='all, delete-orphan')
@@ -540,3 +557,72 @@ class ProjectLink(db.Model):
 
     def __repr__(self):
         return f'<ProjectLink {self.title}>'
+
+
+class CustomerRequest(db.Model):
+    """Customer requests / discussion items for projects"""
+    __tablename__ = 'customer_requests'
+
+    # Request type constants
+    TYPE_FEATURE = 'feature_change'
+    TYPE_ISSUE = 'issue_report'
+    TYPE_DOWN = 'down_report'
+    TYPES = [TYPE_FEATURE, TYPE_ISSUE, TYPE_DOWN]
+    TYPE_LABELS = {
+        TYPE_FEATURE: 'Feature Change',
+        TYPE_ISSUE: 'Issue Report',
+        TYPE_DOWN: 'Down Report',
+    }
+
+    # Status constants
+    STATUS_OPEN = 'open'
+    STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_CLOSED = 'closed'
+    STATUS_CONVERTED = 'converted'
+    STATUSES = [STATUS_OPEN, STATUS_IN_PROGRESS, STATUS_CLOSED, STATUS_CONVERTED]
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    submitted_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    request_type = db.Column(db.String(50), nullable=False)
+    title = db.Column(db.String(300), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default=STATUS_OPEN)
+    admin_notes = db.Column(db.Text, nullable=True)
+    converted_task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    project = db.relationship('Project', backref=db.backref('customer_requests', lazy=True, cascade='all, delete-orphan'))
+    submitted_by = db.relationship('User', backref='submitted_requests', foreign_keys=[submitted_by_id])
+    converted_task = db.relationship('Task', backref='source_request', foreign_keys=[converted_task_id])
+
+    @property
+    def type_label(self):
+        return self.TYPE_LABELS.get(self.request_type, self.request_type)
+
+    @property
+    def type_badge_class(self):
+        if self.request_type == self.TYPE_DOWN:
+            return 'bg-danger'
+        elif self.request_type == self.TYPE_ISSUE:
+            return 'bg-warning text-dark'
+        return 'bg-info'
+
+    @property
+    def status_badge_class(self):
+        mapping = {
+            'open': 'bg-primary',
+            'in_progress': 'bg-warning text-dark',
+            'closed': 'bg-secondary',
+            'converted': 'bg-success',
+        }
+        return mapping.get(self.status, 'bg-secondary')
+
+    @property
+    def status_display(self):
+        return self.status.replace('_', ' ').title()
+
+    def __repr__(self):
+        return f'<CustomerRequest {self.id}: {self.title[:30]}>'

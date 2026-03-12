@@ -139,7 +139,11 @@
                                 <span class="badge bg-warning text-dark ms-1"><i class="bi bi-headset me-1"></i>Support</span>
                                 {% endif %}
                             </p>
-                            {% if task.deadline %}
+                            {% if task.completed and task.completed_at %}
+                            <small class="text-success">
+                                <i class="bi bi-check-circle me-1"></i>Completed {{ task.completed_at|datetimeformat('%b %d, %Y') }}
+                            </small>
+                            {% elif task.deadline %}
                             <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
                                 <i class="bi bi-calendar-event me-1"></i>{{ task.deadline|dateformat('%b %d, %Y') }}
                                 {% if task.is_overdue %}
@@ -184,7 +188,11 @@
                             <span class="badge bg-warning text-dark ms-1"><i class="bi bi-headset me-1"></i>Support</span>
                             {% endif %}
                         </p>
-                        {% if task.deadline %}
+                        {% if task.completed and task.completed_at %}
+                        <small class="text-success">
+                            <i class="bi bi-check-circle me-1"></i>Completed {{ task.completed_at|datetimeformat('%b %d, %Y') }}
+                        </small>
+                        {% elif task.deadline %}
                         <small class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
                             <i class="bi bi-calendar-event me-1"></i>{{ task.deadline|dateformat('%b %d, %Y') }}
                             {% if task.is_overdue %}

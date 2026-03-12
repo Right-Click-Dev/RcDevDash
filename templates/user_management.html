@@ -51,6 +51,11 @@
                             <span class="badge bg-info"><i class="bi bi-person-badge me-1"></i>RC POC</span>
                             {% elif user.role == 'billing' %}
                             <span class="badge bg-success"><i class="bi bi-receipt me-1"></i>Billing</span>
+                            {% elif user.role == 'customer' %}
+                            <span class="badge bg-dark"><i class="bi bi-person me-1"></i>Customer</span>
+                            {% if user.client %}
+                            <small class="text-muted ms-1">{{ user.client.name }}</small>
+                            {% endif %}
                             {% else %}
                             <span class="badge bg-primary"><i class="bi bi-code-slash me-1"></i>Developer</span>
                             {% endif %}
@@ -118,15 +123,26 @@
                     </div>
                     <div class="mb-3">
                         <label for="role" class="form-label">Role *</label>
-                        <select class="form-select" id="role" name="role" required>
+                        <select class="form-select" id="create_role" name="role" required onchange="toggleClientSelect(this, 'create_client_group')">
                             <option value="admin">Admin (Full Access)</option>
                             <option value="poc">RC POC (Admin View, Assigned Projects)</option>
                             <option value="developer" selected>Developer (Dev Dashboard)</option>
                             <option value="billing">Billing (Billing Dashboard)</option>
+                            <option value="customer">Customer (Read-Only Project View)</option>
                         </select>
                         <div class="form-text">
-                            Admin: full access. RC POC: admin dev view for assigned projects. Developer: dev dashboard only. Billing: billing only.
+                            Admin: full access. RC POC: admin dev view for assigned projects. Developer: dev dashboard only. Billing: billing only. Customer: read-only view of their company's projects.
                         </div>
+                    </div>
+                    <div class="mb-3" id="create_client_group" style="display: none;">
+                        <label for="client_id" class="form-label">Client Company *</label>
+                        <select class="form-select" name="client_id">
+                            <option value="">-- Select Client --</option>
+                            {% for client in clients %}
+                            <option value="{{ client.id }}">{{ client.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Required for customer accounts. Links them to their company's projects.</div>
                     </div>
                     <div class="mb-3">
                         <label for="hourly_rate" class="form-label">Hourly Rate</label>
@@ -193,15 +209,25 @@
                     <p>Change role for <strong>{{ user.username }}</strong>.</p>
                     <div class="mb-3">
                         <label for="role_{{ user.id }}" class="form-label">Role *</label>
-                        <select class="form-select" id="role_{{ user.id }}" name="role" required>
+                        <select class="form-select" id="role_{{ user.id }}" name="role" required onchange="toggleClientSelect(this, 'change_client_group_{{ user.id }}')">
                             <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin (Full Access)</option>
                             <option value="poc" {% if user.role == 'poc' %}selected{% endif %}>RC POC (Admin View, Assigned Projects)</option>
                             <option value="developer" {% if user.role == 'developer' %}selected{% endif %}>Developer (Dev Dashboard)</option>
                             <option value="billing" {% if user.role == 'billing' %}selected{% endif %}>Billing (Billing Dashboard)</option>
+                            <option value="customer" {% if user.role == 'customer' %}selected{% endif %}>Customer (Read-Only Project View)</option>
                         </select>
                         <div class="form-text">
-                            Admin: full access. RC POC: admin dev view for assigned projects. Developer: dev dashboard only. Billing: billing only.
+                            Admin: full access. RC POC: admin dev view for assigned projects. Developer: dev dashboard only. Billing: billing only. Customer: read-only.
                         </div>
+                    </div>
+                    <div class="mb-3" id="change_client_group_{{ user.id }}" style="display: {{ 'block' if user.role == 'customer' else 'none' }};">
+                        <label class="form-label">Client Company *</label>
+                        <select class="form-select" name="client_id">
+                            <option value="">-- Select Client --</option>
+                            {% for client in clients %}
+                            <option value="{{ client.id }}" {% if user.client_id == client.id %}selected{% endif %}>{{ client.name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -272,4 +298,16 @@
     </div>
 </div>
 {% endfor %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleClientSelect(selectEl, targetId) {
+    var group = document.getElementById(targetId);
+    if (group) {
+        group.style.display = selectEl.value === 'customer' ? 'block' : 'none';
+    }
+}
+</script>
 {% endblock %}
